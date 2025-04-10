@@ -17,7 +17,7 @@ resource "proxmox_vm_qemu" "prod" {
         ide{
             ide3{
                 cloudinit {
-                    storage = lookup(each.value, "cloudinit_storage", "Backups")
+                    storage = lookup(each.value, "cloudinit_storage", "Configs")
                 }
             }
         }
@@ -38,7 +38,7 @@ resource "proxmox_vm_qemu" "prod" {
         id      = 0
         model   = lookup(each.value, "network_model", "virtio")
         bridge  = lookup(each.value, "network_bridge", "vmbr0")
-        tag     = lookup(each.value, "network_tag", 0)
+        tag     = lookup(each.value, "network_tag", 1)
     }
 
     serial {
@@ -55,7 +55,7 @@ resource "proxmox_vm_qemu" "prod" {
     ciuser          = lookup(each.value, "ciuser", "ansible")
     ciupgrade       = lookup(each.value, "ciupgrade", true)
     ipconfig0       = lookup(each.value, "ipconfig0", "")
-    nameserver      = lookup(each.value, "nameserver", "172.16.0.1")
+    nameserver      = lookup(each.value, "nameserver", "192.168.103.1/24")
     searchdomain    = lookup(each.value, "searchdomain", "mrcurls.org")
     sshkeys         = lookup(each.value, "sshkeys", file("./sshkeys.txt"))
 

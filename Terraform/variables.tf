@@ -37,7 +37,7 @@ variable "pm_tls_insecure" {
 variable "pm_parallel" {
     description = "Allowed Simultaneous Proxmox Requests"
     type        = number
-    default     = 5
+    default     = 2
 }
 
 variable "pm_otp" {

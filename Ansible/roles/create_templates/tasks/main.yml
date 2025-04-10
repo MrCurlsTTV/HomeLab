@@ -50,21 +50,13 @@
   when: ansible_loop_var < get_url_result.results | length
   register: customize_image_result
 
-- name: Check if VM is running
-  command: >
-    qm status {{ item.template_vm_id }}
-  register: vm_status
-  ignore_errors: yes
-  loop: "{{ releases }}"
-  when: item.template_vm_id is defined
-
 - name: Stop existing VM
   command: >
     qm stop {{ item.template_vm_id }}
   register: stop_result
   ignore_errors: yes
   loop: "{{ releases }}"
-  when: item.template_vm_id is defined and vm_status.rc == 0
+  when: item.template_vm_id is defined
 
 
 - name: Destroy existing VM
@@ -73,7 +65,7 @@
   register: destroy_result
   ignore_errors: yes
   loop: "{{ releases }}"
-  when: item.template_vm_id is defined and vm_status.rc == 0
+  when: item.template_vm_id is defined
 
 - name: Create a virtual machine with the specified parameters
   command: >

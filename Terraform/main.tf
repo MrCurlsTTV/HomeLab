@@ -62,10 +62,23 @@ resource "proxmox_vm_qemu" "prod" {
     # Options
     agent           = lookup(each.value, "agent", 1)
     onboot          = lookup(each.value, "onboot", true)
+    numa            = each.value.target_node == "nas" ? false : lookup(each.value, "numa", true)
     
+    connection {
+        type        = "ssh"
+        user        = self.ciuser
+        private_key = file("~/.ssh/id_rsa")
+        host        = split("/", self.ipconfig0)[0]
+        timeout     = "2m"
+    }
+
     provisioner "remote-exec" {
         inline = [
-            "ip a"
+            "ip a",
+            "sudo mkdir -p /mnt/backup /mnt/config /mnt/cold",
+            "sudo mount -t nfs ${var.nfs}:/mnt/Vault/Proxmox/Backups /mnt/backup",
+            "sudo mount -t nfs ${var.nfs}:/mnt/Flash/Configs /mnt/config",
+            "sudo mount -t nfs ${var.nfs}:/mnt/Flash/Cold /mnt/cold"
         ]
     }
 }

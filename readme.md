@@ -16,9 +16,9 @@ Contains Terraform configurations for managing Proxmox VMs and other infrastruct
 - **`sshkeys.txt`**: Stores SSH public keys for VM provisioning.  
 - **`TFC/`**: Contains Docker Compose configuration for running a Terraform Cloud Agent.  
 
-### `Ansible/`  
+### `Ansible POC/`  
 
-Contains Ansible playbooks and roles for automating VM creation and deployment.  
+Contains Ansible proof of concept playbooks and roles for automating VM creation and deployment.  
 
 - **`cloud_init_role.yml`**: Main playbook for creating and deploying cloud-init VM templates.  
 - **`inventory/hosts.ini`**: Inventory file defining Proxmox hosts and variables.  

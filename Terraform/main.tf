@@ -6,6 +6,7 @@ resource "proxmox_vm_qemu" "prod" {
     os_type     = lookup(each.value, "os_type", "cloud-init")
     tags        = lookup(each.value, "tags", "Ubuntu,Oracular")
     vmid        = each.key
+    boot        = lookup(each.value, "boot", "order=scsi0;ide2;net0")
 
     #Hardware
     cores       = lookup(each.value, "cores", 2)
@@ -15,20 +16,23 @@ resource "proxmox_vm_qemu" "prod" {
 
     disks {
         ide{
-            ide3{
+            ide2{
                 cloudinit {
-                    storage = lookup(each.value, "cloudinit_storage", "Configs")
+                    storage = lookup(each.value, "cloudinit_storage", "configs")
                 }
             }
         }
-        virtio {
-            virtio0 {
+        scsi {
+            scsi0 {
                 disk {
-                    size            = lookup(each.value, "disk_size", "32G")
+                    size            = lookup(each.value, "disk_size", "20G")
                     cache           = lookup(each.value, "disk_cache", "writeback")
                     storage         = lookup(each.value, "disk_storage", "local")
-                    iothread        = lookup(each.value, "disk_iothread", true)
                     discard         = lookup(each.value, "disk_discard", true)
+                    emulatessd      = lookup(each.value, "disk_emulatessd", false)
+                    iothread        = lookup(each.value, "disk_iothread", false)
+                    readonly        = lookup(each.value, "disk_readonly", false)
+                    replicate       = lookup(each.value, "disk_replicate", false)
                 }
             }
         }
@@ -38,7 +42,7 @@ resource "proxmox_vm_qemu" "prod" {
         id      = 0
         model   = lookup(each.value, "network_model", "virtio")
         bridge  = lookup(each.value, "network_bridge", "vmbr0")
-        tag     = lookup(each.value, "network_tag", 1)
+        tag     = lookup(each.value, "network_tag", 2)
     }
 
     serial {
@@ -47,7 +51,7 @@ resource "proxmox_vm_qemu" "prod" {
     }
     
     vga {
-        type   = lookup(each.value, "vga_type", "serial0")
+        type   = lookup(each.value, "vga_type", "virtio")
         memory = lookup(each.value, "vga_memory", 128)
     }
 
@@ -55,7 +59,7 @@ resource "proxmox_vm_qemu" "prod" {
     ciuser          = lookup(each.value, "ciuser", "ansible")
     ciupgrade       = lookup(each.value, "ciupgrade", true)
     ipconfig0       = lookup(each.value, "ipconfig0", "")
-    nameserver      = lookup(each.value, "nameserver", "192.168.103.1/24")
+    nameserver      = lookup(each.value, "nameserver", "192.168.103.1")
     searchdomain    = lookup(each.value, "searchdomain", "mrcurls.org")
     sshkeys         = lookup(each.value, "sshkeys", file("./sshkeys.txt"))
 
@@ -63,22 +67,4 @@ resource "proxmox_vm_qemu" "prod" {
     agent           = lookup(each.value, "agent", 1)
     onboot          = lookup(each.value, "onboot", true)
     numa            = each.value.target_node == "nas" ? false : lookup(each.value, "numa", true)
-    
-    connection {
-        type        = "ssh"
-        user        = self.ciuser
-        private_key = file("~/.ssh/id_rsa")
-        host        = split("/", self.ipconfig0)[0]
-        timeout     = "2m"
-    }
-
-    provisioner "remote-exec" {
-        inline = [
-            "ip a",
-            "sudo mkdir -p /mnt/backup /mnt/config /mnt/cold",
-            "sudo mount -t nfs ${var.nfs}:/mnt/Vault/Proxmox/Backups /mnt/backup",
-            "sudo mount -t nfs ${var.nfs}:/mnt/Flash/Configs /mnt/config",
-            "sudo mount -t nfs ${var.nfs}:/mnt/Flash/Cold /mnt/cold"
-        ]
-    }
 }

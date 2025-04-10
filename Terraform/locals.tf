@@ -7,7 +7,7 @@ locals {
             tags        = "K8s,Master"
             memory      = 4096
             cores       = 2
-            ipconfig0 = "ip=172.16.10.200/24,gw=172.16.0.1"
+            ipconfig0 = "ip=172.16.10.200/16,gw=172.16.0.1"
         }
         "201" = {
             name        = "k8s-master-1"
@@ -16,7 +16,7 @@ locals {
             tags        = "K8s,Master"
             memory      = 4096
             cores       = 2
-            ipconfig0   = "ip=172.16.10.201/24,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.201/16,gw=172.16.0.1"
         }
         "202" = {
             name        = "k8s-master-2"
@@ -25,7 +25,7 @@ locals {
             tags        = "K8s,Master"
             memory      = 4096
             cores       = 2
-            ipconfig0   = "ip=172.16.10.202/24,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.202/16,gw=172.16.0.1"
         }
         "210" = {
             name        = "k8s-worker-1"
@@ -34,7 +34,7 @@ locals {
             tags        = "K8s,Worker"
             memory      = 8192
             cores       = 4
-            ipconfig0   = "ip=172.16.10.210/24,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.210/16,gw=172.16.0.1"
         }
         "211" = {
             name        = "k8s-worker-2"
@@ -43,7 +43,7 @@ locals {
             tags        = "K8s,Worker"
             memory      = 8192
             cores       = 4
-            ipconfig0   = "ip=172.16.10.211/24,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.211/16,gw=172.16.0.1"
         }
         "212" = {
             name        = "k8s-worker-3"
@@ -52,7 +52,7 @@ locals {
             tags        = "K8s,Worker"
             memory      = 8192
             cores       = 4
-            ipconfig0   = "ip=172.16.10.212/24,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.212/16,gw=172.16.0.1"
         }
         "213" = {
             name        = "k8s-worker-4"
@@ -61,7 +61,7 @@ locals {
             tags        = "K8s,Worker"
             memory      = 8192
             cores       = 4
-            ipconfig0   = "ip=172.16.10.213/24,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.213/16,gw=172.16.0.1"
         }
         "214" = {
             name        = "k8s-worker-5"
@@ -70,7 +70,7 @@ locals {
             tags        = "K8s,Worker"
             memory      = 8192
             cores       = 4
-            ipconfig0   = "ip=172.16.10.214/24,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.214/16,gw=172.16.0.1"
         }
         "215" = {
             name        = "k8s-worker-6"
@@ -79,7 +79,7 @@ locals {
             tags        = "K8s,Worker"
             memory      = 8192
             cores       = 4
-            ipconfig0   = "ip=172.16.10.215/24,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.215/16,gw=172.16.0.1"
         }
         "216" = {
             name        = "k8s-worker-7"
@@ -88,7 +88,7 @@ locals {
             tags        = "K8s,Worker"
             memory      = 8192
             cores       = 4
-            ipconfig0   = "ip=172.16.10.216/24,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.216/16,gw=172.16.0.1"
         }
         "217" = {
             name        = "k8s-worker-8"
@@ -97,7 +97,7 @@ locals {
             tags        = "K8s,Worker"
             memory      = 8192
             cores       = 4
-            ipconfig0   = "ip=172.16.10.218/24,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.218/16,gw=172.16.0.1"
         }
         "8010" = {
             name        = "Ubuntu-24-10"

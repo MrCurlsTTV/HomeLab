@@ -104,35 +104,35 @@ locals {
             target_node = "nas"
             clone       = "ubuntu-24.10-template"
             tags        = "Ubuntu,Oracular"
-            ipconfig0   = "ip=172.16.10.200/16,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.110/16,gw=172.16.0.1"
         }
         "8011" = {
             name        = "Ubuntu-24.04"
             target_node = "nas"
             clone       = "ubuntu-24.04-template"
             tags        = "Ubuntu,Noble"
-            ipconfig0   = "ip=172.16.10.201/16,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.111/16,gw=172.16.0.1"
         }
         "8012" = {
             name        = "Ubuntu-22.04"
             target_node = "nas"
             clone       = "ubuntu-22.04-template"
             tags        = "Ubuntu,Jammy"
-            ipconfig0   = "ip=172.16.10.202/16,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.112/16,gw=172.16.0.1"
         }
         "8003" = {
             name        = "Debian-12"
             target_node = "nas"
             clone       = "debian-12-template"
             tags        = "Debian,Bookworm"
-            ipconfig0   = "ip=172.16.10.203/16,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.103/16,gw=172.16.0.1"
         }
         "8004" = {
             name        = "Debian-11"
             target_node = "nas"
             clone       = "debian-11-template"
             tags        = "Debian,Bullseye"
-            ipconfig0   = "ip=172.16.10.204/16,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.104/16,gw=172.16.0.1"
         }
     }
 }

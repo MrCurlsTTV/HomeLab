@@ -1,7 +1,7 @@
 variable "pm_api_url" {
     description = "Proxmox API URL"
     type        = string
-    default     = null
+    default     = "https://192.168.103.2:8006/api2/json"
 }
 
 variable "pm_user" {
@@ -20,14 +20,12 @@ variable "pm_password" {
 variable "pm_api_token_id" {
     description = "Proxmox API token ID"
     type        = string
-    default     = null
 }
 
 variable "pm_api_token_secret" {
     description = "Proxmox API token secret"
     type        = string
     sensitive   = true
-    default     = null
 }
 
 variable "pm_tls_insecure" {
@@ -70,4 +68,10 @@ variable "pm_debug" {
     description = "Enable Proxmox API debug mode"
     type        = bool
     default     = true
+}
+
+variable "nfs" {
+    description = "NFS server address"
+    type        = string
+    default     = "truenas.mrcurls.org"
 }

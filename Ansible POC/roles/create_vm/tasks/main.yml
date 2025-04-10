@@ -1,0 +1,68 @@
+# roles/create_vm/tasks/main.yml
+- name: Set Local Storage for Different group_names"
+  set_fact:
+    local_storage: "{{ 'local' if 'SingleStorage' in group_names else 'local-lvm' }}"
+    numa: "{{ '1' if 'DualCPU' in group_names else '0' }}"
+    cloudinit_storage: "{{ 'local:cloudinit' if 'SingleStorage' in group_names else 'local-lvm:cloudinit' }}"
+  register: set_local
+
+- name: Numa Variables
+  set_fact:
+    numa: "{{ '1' if 'DualCPU' in group_names else '0' }}"
+  register: set_numa_result
+
+- name: Download Ubuntu Cloud Image
+  command: >
+    wget {{ ubuntu_image_url }} -O /tmp/{{ release }}-server-cloudimg-amd64.img
+  register: wget_result
+
+- name: Check Installed Packages
+  command: >
+    dpkg -l | grep libguestfs-tools
+  register: check_result
+  ignore_errors: yes
+  changed_when: false
+
+- name: Install Required Tools
+  command: >
+    sudo apt install libguestfs-tools -y
+  register: install_tools_result
+  ignore_errors: yes
+  when: check_result.rc != 0
+
+- name: Customize the Cloud Image
+  command: >
+    virt-customize --install qemu-guest-agent,ncat,net-tools,bash-completion,nfs-common,curl,jq,git,iputils-ping,wget,unzip,libssl3,libcurl4,libicu74,libunwind8,ca-certificates,gnupg,lsb-release,apt-transport-https -a /tmp/{{ release }}-server-cloudimg-amd64.img --run-command "echo -n > /etc/machine-id"
+  register: customize_image_result
+
+- name: stop existing VM
+  command: >
+    qm stop {{ template_vm_id }}
+  register: destroy_result
+  ignore_errors: yes
+
+- name: Destroy existing VM
+  command: >
+    qm destroy {{ template_vm_id }}
+  register: destroy_result
+  ignore_errors: yes
+
+- name: Create a virtual machine with the specified parameters
+  command: >
+    qm create {{ template_vm_id }} --memory {{ memory_size }} --net0 virtio,bridge={{ network_bridge }} --scsihw virtio-scsi-pci -tags {{ vm_tags }},{{ release }} --name {{ release }}-Cloud-Init-Template
+  register: qm_create_result
+
+- name: import downloaded disk to local-lvm storage & set VM options
+  command: >
+    qm set {{ template_vm_id }} --scsi0 {{ local_storage }}:0,import-from=/tmp/{{ release }}-server-cloudimg-amd64.img --ide2 {{ cloudinit_storage }} --boot order=scsi0 --serial0 socket --vga virtio --agent enabled=1
+  register: qm_set
+
+- name: Set NUMA
+  command: >
+    qm set {{ template_vm_id }} --numa {{ numa }}
+  register: qm_set_numa_result
+
+- name: Convert VM to a template
+  command: >
+    qm template {{ template_vm_id }}
+  register: qm_template_result

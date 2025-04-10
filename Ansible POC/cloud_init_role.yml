@@ -1,0 +1,18 @@
+# apply_vm_role.yml
+
+---
+- name: Create Cloud cloud-init VM Template
+  hosts: proxmox
+  remote_user: "{{ ansible_ssh_user }}"
+  become: true
+  roles:
+    - create_vm
+    - deploy_vm
+  vars:
+    NFS: "truenas.mrcurls.org"
+    vm_tags: "Cloud-init"
+    gateway_ip: 192.168.103.1
+    release: "oracular"
+    backup_storage: "{{ NFS }}:/mnt/Vault/Proxmox/Backups"
+    config_storage: "{{ NFS }}:/mnt/Flash/Configs"
+    cold_storage: "{{ NFS }}:/mnt/Flash/Cold"

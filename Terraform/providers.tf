@@ -10,12 +10,12 @@ provider "proxmox" {
 }
 
 terraform { 
-    cloud { 
+  cloud { 
     
-        organization = "MrCurls" 
+    organization = "MrCurls" 
 
     workspaces { 
-        name = "Automation" 
-        } 
+      name = "Prox" 
     } 
+  } 
 }

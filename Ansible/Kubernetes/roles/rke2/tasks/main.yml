@@ -1,0 +1,56 @@
+#roles/rke2/tasks/main.yml
+- name: Ensure RKE2 Directories exist
+  file:
+    path: /etc/rancher/rke2
+    state: directory
+    mode: '0755'
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Create RKE2 server config.yml for First Server node
+  copy:
+    dest: /etc/rancher/rke2/config.yml
+    content: |
+      tls-san:
+        - kube.mrcurls.org
+        - kube-api.mrcurls.org
+      node-taint:
+        - "CriticalAddonsOnly=true:Noexecute"
+    mode: '0755'
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Download RKE2 Install Script
+  get_url:
+    url: https://get.rke2.io
+    dest: /tmp/install.sh
+    mode: '0755'
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Install RKE2 on First Server node
+  command: >
+    /tmp/install.sh
+  register: rke2_install
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Enable & Start RKE2 service
+  systemd:
+    name: rke2-server.service
+    enabled: true
+    state: started
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Read RKE2 Token
+  command: >
+    cat /var/lib/rancher/rke2/server/node-token
+  register: rke2_token
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Print RKE2 Token for Debug
+  debug:
+    msg: "RKE2 Token: {{ rke2_token.stdout }}"
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Install Kubectl
+  command: >
+    snap install kubectl --classic
+  register: kubectl_install
+  when: ansible_hostname == 'k8s-master-0'

@@ -1,0 +1,29 @@
+---
+- name: Create Cloud-init VM Templates
+  hosts: proxmox
+  remote_user: "{{ ansible_ssh_user }}"
+  become: true
+  roles:
+    - create_templates
+  vars:
+    releases:
+      - name: oracular
+        version: "24.10"
+        distro: ubuntu
+        template_vm_id: 9010
+      - name: noble
+        version: "24.04"
+        distro: ubuntu
+        template_vm_id: 9011
+      - name: jammy
+        version: "22.04"
+        distro: ubuntu
+        template_vm_id: 9012
+      - name: bookworm
+        version: "12"
+        distro: debian
+        template_vm_id: 9003
+      - name: bullseye
+        version: "11"
+        distro: debian
+        template_vm_id: 9004

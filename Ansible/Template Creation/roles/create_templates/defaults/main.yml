@@ -1,0 +1,51 @@
+---
+common_packages:
+  - qemu-guest-agent
+  - curl
+  - wget
+  - git
+  - jq
+  - unzip
+  - lsb-release
+  - apt-transport-https
+  - ca-certificates
+  - gnupg
+  - net-tools
+  - bash-completion
+  - perl
+  - tzdata
+  - libcurl4
+  - libunwind8
+  - ncat
+
+extra_packages:
+  debian:
+    bookworm:
+      - libssl3
+    bullseye:
+      - golang
+  ubuntu:
+    oracular:
+      - libssl3
+      - libicu74
+    noble:
+      - libssl3
+      - libicu74
+    jammy:
+      - libssl3
+
+distributions:
+  debian:
+    image_type: genericcloud
+    image_format: qcow2
+    base_url: "https://cloud.debian.org/images/cloud"
+  ubuntu:
+    image_type: server-cloudimg
+    image_format: img
+    base_url: "https://cloud-images.ubuntu.com"
+
+# VM Configuration
+memory_size: 2048
+network_bridge: vmbr0
+cloudinit_storage: "configs:cloudinit"
+local_storage: "Backups"

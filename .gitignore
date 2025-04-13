@@ -26,7 +26,6 @@ modules-dev/
 *.dll
 *.exe
 *.iml
-*.lock.hcl
 *.log
 *.test
 *.tfplan

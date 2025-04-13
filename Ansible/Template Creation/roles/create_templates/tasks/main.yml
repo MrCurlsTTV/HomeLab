@@ -1,0 +1,191 @@
+#roles/create_templates/tasks/main.yml
+- name: Check Installed Packages
+  shell: |
+    dpkg -l | grep libguestfs-tools
+  register: check_result
+  ignore_errors: yes
+  changed_when: false
+
+- name: Install Required Tools
+  command: >
+    sudo apt install libguestfs-tools -y
+  when: check_result.rc != 0
+  become: true
+
+- name: Set image details per distribution
+  set_fact:
+    image_info: "{{ distributions[item.distro] | combine({'name': item.name, 'version': item.version}) }}"
+  loop: "{{ releases }}"
+  when: item.distro is defined
+  register: image_info
+
+- name: Remove old image file if it exists
+  file:
+    path: "/tmp/{{ item.name }}-{{ distributions[item.distro].image_type }}-amd64.{{ distributions[item.distro].image_format }}"
+    state: absent
+  loop: "{{ releases }}"
+  when: item.distro is defined and item.name is defined
+
+- name: Cloud Image Urls
+  get_url:
+    url: >-
+      {% if item.distro == 'debian' %}
+      {{ distributions[item.distro].base_url }}/{{ item.name }}/latest/{{ item.distro }}-{{ item.version }}-{{ distributions[item.distro].image_type }}-amd64.{{ distributions[item.distro].image_format }}
+      {% else %}
+      {{ distributions[item.distro].base_url }}/{{ item.name }}/current/{{ item.name }}-{{ distributions[item.distro].image_type }}-amd64.{{ distributions[item.distro].image_format }}
+      {% endif %}
+    dest: "/tmp/{{ item.name }}-{{ distributions[item.distro].image_type }}-amd64.{{ distributions[item.distro].image_format }}"
+  loop: "{{ releases }}"
+  when: item.distro is defined and item.name is defined
+  register: get_url_result
+
+- name: Build package list for each release
+  set_fact:
+    package_list: "{{ common_packages + (extra_packages[item.distro][item.name] | default([])) | list }}"
+  loop: "{{ releases }}"
+  register: package_lists
+
+- name: Customize Cloud Images
+  command: >
+    virt-customize 
+    --install {{ item.ansible_facts.package_list | join(',') }}
+    -a {{ get_url_result.results[ansible_loop_var].dest }}
+    --run-command "echo -n > /etc/machine-id"
+  loop: "{{ package_lists.results }}"
+  loop_control:
+    index_var: ansible_loop_var
+  when: ansible_loop_var < get_url_result.results | length
+  register: customize_image_result
+
+- name: Stop existing VM
+  command: >
+    qm stop {{ item.template_vm_id }}
+  register: stop_result
+  ignore_errors: yes
+  loop: "{{ releases }}"
+  when: item.template_vm_id is defined
+
+
+- name: Destroy existing VM
+  command: >
+    qm destroy {{ item.template_vm_id }}
+  register: destroy_result
+  ignore_errors: yes
+  loop: "{{ releases }}"
+  when: item.template_vm_id is defined
+
+- name: Create a virtual machine with the specified parameters
+  command: >
+    qm create {{ item.template_vm_id }} 
+    --memory {{ memory_size }} 
+    --net0 virtio,bridge={{ network_bridge }} 
+    --scsihw virtio-scsi-pci 
+    --name {{ item.distro }}-{{ item.version }}-template
+    -tags {{ item.distro | capitalize }},{{ item.name | capitalize }},Template
+  register: qm_create_result
+  loop: "{{ releases }}"
+  when: item.template_vm_id is defined and item.name is defined
+
+- name: import downloaded disk to local-lvm storage & set VM options
+  command: >
+    qm set {{ item.template_vm_id }} 
+    --scsi0 {{ local_storage }}:0,import-from={{ get_url_result.results[ansible_loop_var].dest }}
+    --ide2 {{ cloudinit_storage }} 
+    --boot order=scsi0 
+    --serial0 socket 
+    --vga virtio 
+    --agent enabled=1
+    --numa 0
+  loop: "{{ releases }}"
+  loop_control:
+    index_var: ansible_loop_var
+  when: 
+    - item.template_vm_id is defined 
+    - item.name is defined
+    - ansible_loop_var < get_url_result.results | length
+  register: qm_set
+
+- name: Template VM
+  command: >
+    qm template {{ item.template_vm_id }}
+  register: template_result
+  loop: "{{ releases }}"
+  when: item.template_vm_id is defined and item.name is defined
+
+- name: Debug - Image Details
+  debug:
+    msg: "Processing {{ item.distro | upper }} {{ item.name }} (version {{ item.version }})"
+  loop: "{{ releases }}"
+  when: item.distro is defined
+
+- name: Debug - Download Results
+  debug:
+    msg: >-
+      Image download for {{ item.name }}:
+      URL: {{ item.url }}
+      Destination: {{ item.dest }}
+      Status: {{ item.changed | ternary('Downloaded', 'Already exists') }}
+  loop: "{{ get_url_result.results }}"
+  when: item is defined
+
+- name: Debug - Package Lists
+  debug:
+    msg: >-
+      Packages for {{ item.name }}:
+      {{ package_lists.results[ansible_loop_var].ansible_facts.package_list | join(', ') }}
+  loop: "{{ releases }}"
+  loop_control:
+    index_var: ansible_loop_var
+  when: ansible_loop_var < package_lists.results | length
+
+- name: Debug - Image Customization
+  debug:
+    msg: >-
+      Customizing {{ item.name }}:
+      Status: {{ customize_image_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
+  loop: "{{ releases }}"
+  loop_control:
+    index_var: ansible_loop_var
+  when: ansible_loop_var < customize_image_result.results | length
+
+- name: Debug - VM Operations
+  debug:
+    msg: >-
+      VM {{ item.template_vm_id }} ({{ item.distro }}-{{ item.version }}):
+      Stop: {{ stop_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
+      Destroy: {{ destroy_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
+      Create: {{ qm_create_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
+  loop: "{{ releases }}"
+  loop_control:
+    index_var: ansible_loop_var
+  when: ansible_loop_var < qm_create_result.results | length
+
+- name: Debug - Import and Configure
+  debug:
+    msg: >-
+      VM {{ item.template_vm_id }} Configuration:
+      Storage Import: {{ qm_set.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
+      Settings: {{ qm_set.results[ansible_loop_var].stdout_lines | default(['No output']) | join(', ') }}
+  loop: "{{ releases }}"
+  loop_control:
+    index_var: ansible_loop_var
+  when: ansible_loop_var < qm_set.results | length
+
+- name: Debug - Template Conversion
+  debug:
+    msg: >-
+      Template {{ item.template_vm_id }}:
+      Status: {{ template_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
+  loop: "{{ releases }}"
+  loop_control:
+    index_var: ansible_loop_var
+  when: ansible_loop_var < template_result.results | length
+
+- name: Debug - Final Summary
+  debug:
+    msg: >-
+      Template Creation Summary:
+      Total templates processed: {{ releases | length }}
+      Successful downloads: {{ get_url_result.results | selectattr('changed', 'equalto', true) | list | length }}
+      Failed downloads: {{ get_url_result.results | selectattr('failed', 'equalto', true) | list | length }}
+      Successful templates: {{ template_result.results | selectattr('rc', 'equalto', 0) | list | length }}

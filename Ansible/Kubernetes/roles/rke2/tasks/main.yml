@@ -4,7 +4,26 @@
     path: /etc/rancher/rke2
     state: directory
     mode: '0755'
-  when: ansible_hostname == 'k8s-master-0'
+
+- name: Disable Firewall
+  command: >
+    sudo ufw disable
+  register: disable_ufw
+
+- name: Disable Swap
+  command: >
+    sudo swapoff -a
+  register: disable_swap
+
+- name: Comment out swap line in /etc/fstab
+  become: true
+  lininfile:
+    path: /etc/fstab
+    regexp: '^([^#].*\s+swap\s+)'
+    line: '# \1'
+    backref: yes
+  when: disable_swap is changed
+  register: comment_swap_fstab
 
 - name: Create RKE2 server config.yml for First Server node
   copy:
@@ -12,6 +31,7 @@
     content: |
       tls-san:
         - kube.mrcurls.org
+        - 172.16.10.200
         - kube-api.mrcurls.org
       node-taint:
         - "CriticalAddonsOnly=true:Noexecute"
@@ -24,12 +44,14 @@
     dest: /tmp/install.sh
     mode: '0755'
   when: ansible_hostname == 'k8s-master-0'
+  ignore_errors: yes
 
 - name: Install RKE2 on First Server node
   command: >
     /tmp/install.sh
   register: rke2_install
   when: ansible_hostname == 'k8s-master-0'
+  ignore_errors: yes
 
 - name: Enable & Start RKE2 service
   systemd:
@@ -44,13 +66,42 @@
   register: rke2_token
   when: ansible_hostname == 'k8s-master-0'
 
-- name: Print RKE2 Token for Debug
-  debug:
-    msg: "RKE2 Token: {{ rke2_token.stdout }}"
+- name: Set RKE2 Token as a fact on k8s-master-0
+  set_fact:
+    shared_rke2_token: "{{ rke2_token.stdout }}"
   when: ansible_hostname == 'k8s-master-0'
 
-- name: Install Kubectl
+- name: Create RKE2 config.yml for Remaining Master nodes
+  copy:
+    dest: /etc/rancher/rke2/config.yml
+    content: |
+      server: 172.16.10.200:9345
+      token: {{ hostvars['k8s-master-0'].shared_rke2_token }}
+      tls-san:
+        - kube.mrcurls.org
+        - 172.16.10.200
+        - kube-api.mrcurls.org
+      node-taint:
+        - "CriticalAddonsOnly=true:Noexecute"
+    mode: '0755'
+  when: ansible_hostname != 'k8s-master-0' and ansible_hostname.startswith('k8s-master-')
+
+- name: Download RKE2 Install Script for Remaining Master nodes
+  get_url:
+    url: https://get.rke2.io
+    dest: /tmp/install.sh
+    mode: '0755'
+  when: ansible_hostname != 'k8s-master-0' and ansible_hostname.startswith('k8s-master-')
+
+- name: Install RKE2 on Remaining Master nodes
   command: >
-    snap install kubectl --classic
-  register: kubectl_install
-  when: ansible_hostname == 'k8s-master-0'
+    /tmp/install.sh
+  register: rke2_install
+  when: ansible_hostname != 'k8s-master-0' and ansible_hostname.startswith('k8s-master-')
+
+- name: Enable & Start RKE2 service on Remaining Master nodes
+  systemd:
+    name: rke2-server.service
+    enabled: true
+    state: started
+  when: ansible_hostname != 'k8s-master-0' and ansible_hostname.startswith('k8s-master-')

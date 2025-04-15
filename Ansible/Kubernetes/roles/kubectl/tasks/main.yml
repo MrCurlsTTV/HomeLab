@@ -1,0 +1,23 @@
+- name: Install Kubectl on Masters
+  command: >
+    snap install kubectl --classic
+  when: ansible_hostname in groups['k8s-master']
+  register: kubectl_master
+
+- name: Export Kubeconfig for Masters
+  command: >
+    export KUBECONFIG=/etc/rancher/rke2/rke2.yaml PATH=$PATH:/var/lib/rancher/rke2/bin/kubectl
+  when: ansible_hostname in groups['k8s-master']
+  register: kubeconfig_master
+
+- name: Check Nodes
+  command: >
+    kubectl get nodes
+  when: ansible_hostname in groups['k8s-master']
+  register: nodes_master
+  ignore_errors: true
+
+- name: Debug Node Check
+  debug:
+    msg: "Node check output: {{ nodes_master.stdout }}"
+  when: ansible_hostname in groups['k8s-master']

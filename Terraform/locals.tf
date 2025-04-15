@@ -4,7 +4,7 @@ locals {
             name        = "k8s-master-0"
             target_node = "dl360g0"
             clone       = "ubuntu-24.04-template"
-            tags        = "k8s;master"
+            tags        = "k8s;master;ubuntu-24.04"
             memory      = 4096
             cores       = 2
             ipconfig0 = "ip=172.16.10.200/16,gw=172.16.0.1"
@@ -13,7 +13,7 @@ locals {
             name        = "k8s-master-1"
             target_node = "dl360g1"
             clone       = "ubuntu-24.04-template"
-            tags        = "k8s;master"
+            tags        = "k8s;master;ubuntu-24.04"
             memory      = 4096
             cores       = 2
             ipconfig0   = "ip=172.16.10.201/16,gw=172.16.0.1"
@@ -22,7 +22,7 @@ locals {
             name        = "k8s-master-2"
             target_node = "dl360g2"
             clone       = "ubuntu-24.04-template"
-            tags        = "k8s;master"
+            tags        = "k8s;master;ubuntu-24.04"
             memory      = 4096
             cores       = 2
             ipconfig0   = "ip=172.16.10.202/16,gw=172.16.0.1"
@@ -31,7 +31,7 @@ locals {
             name        = "k8s-worker-1"
             target_node = "nas"
             clone       = "ubuntu-24.04-template"
-            tags        = "k8s;worker"
+            tags        = "k8s;worker;ubuntu-24.04"
             memory      = 8192
             cores       = 4
             ipconfig0   = "ip=172.16.10.210/16,gw=172.16.0.1"
@@ -40,7 +40,7 @@ locals {
             name        = "k8s-worker-2"
             target_node = "nas"
             clone       = "ubuntu-24.04-template"
-            tags        = "k8s;worker"
+            tags        = "k8s;worker;ubuntu-24.04"
             memory      = 8192
             cores       = 4
             ipconfig0   = "ip=172.16.10.211/16,gw=172.16.0.1"
@@ -49,7 +49,7 @@ locals {
             name        = "k8s-worker-3"
             target_node = "dl360g0"
             clone       = "ubuntu-24.04-template"
-            tags        = "k8s;worker"
+            tags        = "k8s;worker;ubuntu-24.04"
             memory      = 8192
             cores       = 4
             ipconfig0   = "ip=172.16.10.212/16,gw=172.16.0.1"
@@ -58,7 +58,7 @@ locals {
             name        = "k8s-worker-4"
             target_node = "dl360g0"
             clone       = "ubuntu-24.04-template"
-            tags        = "k8s;worker"
+            tags        = "k8s;worker;ubuntu-24.04"
             memory      = 8192
             cores       = 4
             ipconfig0   = "ip=172.16.10.213/16,gw=172.16.0.1"
@@ -67,7 +67,7 @@ locals {
             name        = "k8s-worker-5"
             target_node = "dl360g1"
             clone       = "ubuntu-24.04-template"
-            tags        = "k8s;worker"
+            tags        = "k8s;worker;ubuntu-24.04"
             memory      = 8192
             cores       = 4
             ipconfig0   = "ip=172.16.10.214/16,gw=172.16.0.1"
@@ -76,7 +76,7 @@ locals {
             name        = "k8s-worker-6"
             target_node = "dl360g1"
             clone       = "ubuntu-24.04-template"
-            tags        = "k8s;worker"
+            tags        = "k8s;worker;ubuntu-24.04"
             memory      = 8192
             cores       = 4
             ipconfig0   = "ip=172.16.10.215/16,gw=172.16.0.1"
@@ -85,7 +85,7 @@ locals {
             name        = "k8s-worker-7"
             target_node = "dl360g2"
             clone       = "ubuntu-24.04-template"
-            tags        = "k8s;worker"
+            tags        = "k8s;worker;ubuntu-24.04"
             memory      = 8192
             cores       = 4
             ipconfig0   = "ip=172.16.10.216/16,gw=172.16.0.1"
@@ -94,10 +94,30 @@ locals {
             name        = "k8s-worker-8"
             target_node = "dl360g2"
             clone       = "ubuntu-24.04-template"
-            tags        = "k8s;worker"
+            tags        = "k8s;worker;ubuntu-24.04"
             memory      = 8192
             cores       = 4
             ipconfig0   = "ip=172.16.10.217/16,gw=172.16.0.1"
+        }
+        "301" = {
+            name        = "Git-Runner-1"
+            target_node = "nas"
+            clone       = "ubuntu-24.10-template"
+            tags        = "git;runner;ubuntu-24.10"
+            memory      = 8192
+            cores       = 2
+            disk_size   = "32G"
+            ipconfig0   = "ip=172.16.11.101/16,gw=172.16.0.1"
+        }
+        "302" ={
+            name        = "Docker-1"
+            target_node = "nas"
+            clone       = "ubuntu-24.10-template"
+            tags        = "docker;ubuntu-24.10"
+            memory      = 8192
+            cores       = 4
+            disk_size   = "32G"
+            ipconfig0   = "ip=172.16.11.102/16,gw=172.16.0.1"
         }
         #"8010" = {
         #    name        = "Ubuntu-24-10"

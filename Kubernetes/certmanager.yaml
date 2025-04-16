@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+  labels:
+    istio-injection: enabled
+
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod-cluster
+  namespace: istio-system
+spec:
+  acme:
+    email: mrcurls@mrcurls.org
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-cluster
+    solvers:
+    - http01:
+        ingress:
+          class: istio
+
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging-cluster
+  namespace: istio-system
+spec:
+  acme:
+    email: mrcurls@mrcurls.org
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-cluster
+    solvers:
+    - http01:
+        ingress:
+          class: istio
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mrcurls-cert-prod
+  namespace: istio-system
+spec:
+  secretName: mrcurls-cert-prod
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 2048
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - "rancher.mrcurls.org"
+    - "argocd.mrcurls.org"
+    - "istio.mrcurls.org"
+  issuerRef:
+    name: letsencrypt-prod-cluster
+    kind: ClusterIssuer
+    group: cert-manager.io
+    
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mrcurls-cert-staging
+  namespace: istio-system
+spec:
+  secretName: mrcurls-cert-staging
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 2048
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - "staging.mrcurls.org"
+  issuerRef:
+    name: letsencrypt-staging-cluster
+    kind: ClusterIssuer
+    group: cert-manager.io
+---

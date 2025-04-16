@@ -24,3 +24,16 @@
   debug:
     msg: "Node check output: {{ nodes_master.stdout }}"
   when: ansible_hostname in groups['k8s-master']
+
+- name: Create Namespaces
+  command: >
+    kubectl create namespace {{ item }}
+  loop:
+    - istio-system
+    - cert-manager
+    - metallb-system
+    - argocd
+    - cattle-system
+    - keda
+  when: ansible_hostname in groups['k8s-master']
+  register: create_namespace_master

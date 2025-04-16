@@ -1,0 +1,19 @@
+- name: Remove Existing Kube Config
+  file:
+    path: "{{ kube_user.home }}/.kube"
+    state: absent
+
+- name: Create .kube directory
+  file:
+    path: "{{ kube_user.home }}/.kube"
+    state: directory
+    mode: '0755'
+    owner: "{{ kube_user.owner }}"
+
+- name: Copy Kube Config
+  copy:
+    src: /etc/rancher/rke2/rke2.yaml
+    dest: "{{ kube_user.home }}/.kube/config"
+    mode: '0644'
+    owner: "{{ kube_user.owner }}"
+    remote_src: yes

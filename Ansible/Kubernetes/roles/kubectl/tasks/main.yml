@@ -4,11 +4,14 @@
   when: ansible_hostname in groups['k8s-master']
   register: kubectl_master
 
-- name: Export Kubeconfig for Masters
-  command: >
-    export KUBECONFIG=/etc/rancher/rke2/rke2.yaml PATH=$PATH:/var/lib/rancher/rke2/bin/kubectl
+- name: Ensure Kube Config Directory is reset and updated
+  include_tasks: kube_config.yml
+  loop:
+    - { home: '/root', owner: 'root'}
+    - { home: '/home/{{ ansible_ssh_user }}', owner: "{{ ansible_ssh_user }}"}
+  loop_control:
+    loop_var: kube_user
   when: ansible_hostname in groups['k8s-master']
-  register: kubeconfig_master
 
 - name: Check Nodes
   command: >

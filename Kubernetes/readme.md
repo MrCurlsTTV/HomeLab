@@ -9,6 +9,6 @@ This directory contains Kubernetes manifests for managing clusters.
 
 ## Subdirectories
 
-- **`CertManagerTesting/`**:
-  - **`Prod/`**: Production Cert-Manager configurations.
-  - **`Staging/`**: Staging Cert-Manager configurations.
+- **`certmanagertesting/`**:
+  - **`prod/`**: Production Cert-Manager configurations.
+  - **`staging/`**: Staging Cert-Manager configurations.

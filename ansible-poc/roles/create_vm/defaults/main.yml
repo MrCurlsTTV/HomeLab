@@ -1,0 +1,10 @@
+# roles/create_vm/defaults/main.yml
+
+
+memory_size: 2048
+network_bridge: vmbr0
+storage: local-lvm
+disk_size: 10G
+cloudinit_storage: local-lvm:cloudinit
+release: oracular
+ubuntu_image_url: https://cloud-images.ubuntu.com/{{ release }}/current/{{ release }}-server-cloudimg-amd64.img

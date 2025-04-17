@@ -1,0 +1,69 @@
+# roles/deploy_vm/tasks/main.yml
+
+- name: Generate VM ID for New VM & Random IP
+  set_fact:
+    random_ip: "192.168.103.{{ 220 + play_hosts.index(inventory_hostname) }}"
+  register: new_vm_result
+
+- name: Stop Old VM
+  command: >
+    qm stop {{ new_vm_id }}
+  ignore_errors: yes
+  register: stop_result
+
+- name: Pause for VM to Stop
+  pause:
+      seconds: 60
+
+- name: Destroy Old VM
+  command: >
+    qm destroy {{ new_vm_id }}
+  when: stop_result is not failed
+  ignore_errors: yes
+
+- name: Deploy VM
+  command: >
+    qm clone {{ template_vm_id }} {{ new_vm_id }} --name Test-{{ release }}
+  register: clone_result
+
+- name: Configure VM
+  command: >
+    qm set {{ new_vm_id }} --tags {{ vm_tags }},{{ release }} --ipconfig0 ip={{ random_ip }}/24,gw={{ gateway_ip }} --vga virtio --sshkey ~/.ssh/authorized_keys
+  register: vm_configure
+
+- name: Start VM
+  command: >
+    qm start {{ new_vm_id }}
+  register: start_result
+
+- name: Show result of random IP generation
+  debug:
+    msg: "Random IP: {{ random_ip }}, New VM ID: {{ new_vm_id }}"
+
+- name: Connect VM
+  command: >
+    ssh -i ~/.ssh/id_rsa ubuntu@{{ random_ip }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null echo 'Connected'
+  register: connect_result
+  until: connect_result is succeeded
+  retries: 5
+  delay: 15
+
+- name: Create NFS Mounts
+  command: >
+    ssh -i ~/.ssh/id_rsa ubuntu@{{ random_ip }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null sudo mkdir -p /mnt/backup /mnt/config /mnt/cold
+  register: create_mounts_result
+
+- name: Mount Backup storage
+  command: >
+    ssh -i ~/.ssh/id_rsa ubuntu@{{ random_ip }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null sudo mount -t nfs {{ backup_storage }} /mnt/backup
+  register: mount_result
+
+- name: Mount Config Storage
+  command: >
+    ssh -i ~/.ssh/id_rsa ubuntu@{{ random_ip }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null sudo mount -t nfs {{ config_storage }} /mnt/config
+  register: mount_result
+
+- name: Mount Cold Storage
+  command: >
+    ssh -i ~/.ssh/id_rsa ubuntu@{{ random_ip }} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null sudo mount -t nfs {{ cold_storage }} /mnt/cold
+  register: mount_result

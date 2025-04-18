@@ -3,6 +3,9 @@
     snap install kubectl --classic
   when: ansible_hostname in groups['k8s-master']
   register: kubectl_master
+  timeout: 45
+  retries: 3
+  delay: 10
 
 - name: Ensure Kube Config Directory is reset and updated
   include_tasks: kube_config.yml
@@ -30,10 +33,9 @@
     kubectl create namespace {{ item }}
   loop:
     - istio-system
-    - cert-manager
     - metallb-system
     - argocd
     - cattle-system
     - keda
-  when: ansible_hostname in groups['k8s-master']
+  when: ansible_hostname in groups['k8s-master'] == 'k8s-master-0'
   register: create_namespace_master

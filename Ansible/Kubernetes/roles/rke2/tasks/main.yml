@@ -32,14 +32,13 @@
 
 - name: Create RKE2 server config.yml for First Server node
   copy:
-    dest: /etc/rancher/rke2/config.yml
+    dest: /etc/rancher/rke2/config.yaml
     content: |
       tls-san:
+        - 127.0.0.1
         - kube.mrcurls.org
         - 172.16.10.200
         - kube-api.mrcurls.org
-      node-taint:
-        - "CriticalAddonsOnly=true:Noexecute"
     mode: '0755'
   when: ansible_hostname == 'k8s-master-0'
 
@@ -50,21 +49,11 @@
     mode: '0755'
   register: download_script
 
-- name: Set Parameter for Agents
+- name: Install RKE2 on Master node
   command: >
-    sudo INSTALL_RKE2_TYPE="AGENT" sh /tmp/install.sh
-  when: ansible_hostname.startswith('k8s-worker-')
-
-- name: Set Parameter for Server
-  command: >
-    sudo INSTALL_RKE2_TYPE="SERVER" sh /tmp/install.sh
-  when: ansible_hostname.startswith('k8s-master-')
-
-- name: Install RKE2 on all nodes
-  command: >
-    /tmp/install.sh
-  register: rke2_install
-  ignore_errors: yes
+    sudo INSTALL_RKE2_TYPE="server" sh /tmp/install.sh
+  when: ansible_hostname == 'k8s-master-0'
+  register: install_rke2_master
 
 - name: Enable & Start RKE2 service
   systemd:
@@ -90,40 +79,36 @@
     rke2_config_content: |
       server: https://172.16.10.200:9345
       token: {{ hostvars['k8s-master-0'].shared_rke2_token }}
+  when: ansible_hostname != 'k8s-master-0'
 
 - name: Append master-specific settings if host is a secondary master
   set_fact:
-    rke2_config_content: "{{ rke2_config_content }}\n      tls-san:\n        - kube.mrcurls.org\n        - 172.16.10.200\n        - kube-api.mrcurls.org\n      node-taint:\n        - 'CriticalAddonsOnly=true:Noexecute' "
+    rke2_config_content: |
+      {{ rke2_config_content }}
+      tls-san:
+        - kube.mrcurls.org
+        - 172.16.10.200
+        - kube-api.mrcurls.org
   when: ansible_hostname.startswith('k8s-master-') and ansible_hostname != 'k8s-master-0'
 
 - name: Create RKE2 config.yml for Agent and Remaining Master nodes
   copy:
-    dest: /etc/rancher/rke2/config.yml
+    dest: /etc/rancher/rke2/config.yaml
     mode: '0755'
     content: "{{ rke2_config_content }}"
   when: ansible_hostname != 'k8s-master-0' and (ansible_hostname.startswith('k8s-master-') or ansible_hostname.startswith('k8s-worker-'))
 
-- name: Join nodes to the RKE2 master node
+- name: Install RKE2 with parameters
   command: >
-    sudo rke2 {{ 'server' if ansible_hostname.startswith('k8s-master-') else 'agent' }}
-    -s https://172.16.10.200:9345
-    -t {{ hostvars['k8s-master-0'].shared_rke2_token }}
-  when: ansible_hostname != 'k8s-master-0'
-  register: rke2_join
-  timeout: 60
-  ignore_errors: yes
+    sudo INSTALL_RKE2_TYPE="{{ 'server' if ansible_hostname.startswith('k8s-master-') else 'agent' }}" sh /tmp/install.sh
+  when: ansible_hostname in groups['k8s-master'] or ansible_hostname in groups['k8s-worker'] != 'k8s-master-0'
+  register: set_parameters
 
-
-- name: Ensure RKE2 service is enabled on appropriate node type
-  command: >
-    sudo systemctl enable {{ 'rke2-server.service' if ansible_hostname.startswith('k8s-master-') else 'rke2-agent.service' }}
-  when: ansible_hostname.startswith('k8s-master-') or ansible_hostname.startswith('k8s-worker-')
-  register: rke2_service
-  ignore_errors: yes
-
-- name: Ensure RKE2 service is started on appropriate node type
-  command: >
-    sudo systemctl start {{ 'rke2-server.service' if ansible_hostname.startswith('k8s-master-') else 'rke2-agent.service' }}
-  when: ansible_hostname.startswith('k8s-master-') or ansible_hostname.startswith('k8s-worker-')
-  register: rke2_service
-  ignore_errors: yes
+- name: Enable & Start RKE2 services
+  systemd:
+    name: "{{ 'rke2-server.service' if 'k8s-master-' in ansible_hostname else 'rke2-agent.service' }}"
+    enabled: true
+    state: started
+  when: ansible_hostname in groups['k8s-master'] or ansible_hostname in groups['k8s-worker']
+  timeout: 45
+  ignore_errors: true

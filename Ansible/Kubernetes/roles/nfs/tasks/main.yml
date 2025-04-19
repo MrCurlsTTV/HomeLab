@@ -8,22 +8,22 @@
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: directory
-    mode: '0755'
-  loop: "{{ nfs_mounts_master if ansible_hostname in groups['k8s-master'] else nfs_mounts_worker }}"
+    mode: '0775'
+  loop: "{{ nfs_mounts }}"
   become: true
 
 - name: Mount all NFS shares and persist them in fstab
-  ansible.builtin.mount:
+  ansible.posix.mount:
     path: "{{ item.path }}"
-    src: "{{ item.src }}"
+    src: "{{nfs_server}}:{{ item.src }}"
     fstype: nfs
     opts: defaults
     state: mounted
-  loop: "{{ nfs_mounts_master if ansible_hostname in groups['k8s-master'] else nfs_mounts_worker }}"
+  loop: "{{ nfs_mounts }}"
   become: true
 
 - name: Check PVCs for Rancher Monitoring
-  kubernetes.core.k8s_facts:
+  kubernetes.core.k8s_info:
     kind: PersistentVolumeClaim
     namespace: cattle-monitoring-system
   register: pvc_facts

@@ -101,14 +101,18 @@
 - name: Install RKE2 with parameters
   command: >
     sudo INSTALL_RKE2_TYPE="{{ 'server' if ansible_hostname.startswith('k8s-master-') else 'agent' }}" sh /tmp/install.sh
-  when: ansible_hostname in groups['k8s-master'] or ansible_hostname in groups['k8s-worker'] != 'k8s-master-0'
+  when: ansible_hostname in groups['k8smaster'] or ansible_hostname in groups['k8sworker'] != 'k8s-master-0'
   register: set_parameters
+  retries: 4
+  delay: 10
 
 - name: Enable & Start RKE2 services
   systemd:
     name: "{{ 'rke2-server.service' if 'k8s-master-' in ansible_hostname else 'rke2-agent.service' }}"
     enabled: true
     state: started
-  when: ansible_hostname in groups['k8s-master'] or ansible_hostname in groups['k8s-worker']
+  when: ansible_hostname in groups['k8smaster'] or ansible_hostname in groups['k8sworker']
   timeout: 45
+  retries: 2
+  delay: 20
   ignore_errors: true

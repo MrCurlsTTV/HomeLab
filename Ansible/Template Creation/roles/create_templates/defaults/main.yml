@@ -31,6 +31,7 @@ extra_packages:
     noble:
       - libssl3
       - libicu74
+      - python3-pip
     jammy:
       - libssl3
 

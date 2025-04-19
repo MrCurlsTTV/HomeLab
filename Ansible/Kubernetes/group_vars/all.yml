@@ -8,15 +8,35 @@ nfs_provisioners:
   - name: vault-data
     path: /mnt/Vault/Data
     Storage_class: vault-data-nfs
+
   - name: influxdb
-    path: /mnt/Vault/Data/InfluxDB
+    path: /mnt/Data/InfluxDB
     Storage_class: influxdb-nfs
+  
   - name: etcd
-    path: /mnt/Vault/Data/Etcd
+    path: /mnt/Data/etcd
     Storage_class: etcd-nfs
+  
   - name: flash-configs
-    path: /mnt/Flash/Configs
+    path: /mnt/Configs
     Storage_class: flash-configs-nfs
+  
   - name: monitoring-data
-    path: /mnt/Vault/Data/monitoring-data
+    path: /mnt/Data/Monitoring
     Storage_class: monitoring-data-nfs
+
+nfs_mounts:
+  - path: /mnt/Vault/Data
+    src: /mnt/Vault/Data
+
+  - path: /mnt/Data/InfluxDB
+    src: /mnt/Vault/Data/InfluxDB
+
+  - path: /mnt/Data/etcd
+    src: /mnt/Vault/Data/etcd
+
+  - path: /mnt/Configs
+    src: /mnt/Flash/Configs
+
+  - path: /mnt/Data/Monitoring
+    src: /mnt/Vault/Data/monitoring-data

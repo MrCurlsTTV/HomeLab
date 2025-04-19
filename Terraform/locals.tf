@@ -7,6 +7,7 @@ locals {
             tags        = "k8s;master;ubuntu-24.04"
             memory      = 4096
             cores       = 2
+            disk_size   = "50G"
             ipconfig0 = "ip=172.16.10.200/16,gw=172.16.0.1"
         }
         "201" = {
@@ -16,6 +17,7 @@ locals {
             tags        = "k8s;master;ubuntu-24.04"
             memory      = 4096
             cores       = 2
+            disk_size   = "50G"
             ipconfig0   = "ip=172.16.10.201/16,gw=172.16.0.1"
         }
         "202" = {
@@ -25,6 +27,7 @@ locals {
             tags        = "k8s;master;ubuntu-24.04"
             memory      = 4096
             cores       = 2
+            disk_size   = "50G"
             ipconfig0   = "ip=172.16.10.202/16,gw=172.16.0.1"
         }
         "210" = {
@@ -106,7 +109,7 @@ locals {
             tags        = "git;runner;ubuntu-24.10"
             memory      = 8192
             cores       = 2
-            disk_size   = "32G"
+            disk_size   = "80G"
             ipconfig0   = "ip=172.16.11.101/16,gw=172.16.0.1"
         }
         "302" ={
@@ -116,7 +119,7 @@ locals {
             tags        = "docker;ubuntu-24.10"
             memory      = 8192
             cores       = 4
-            disk_size   = "32G"
+            disk_size   = "80G"
             ipconfig0   = "ip=172.16.11.102/16,gw=172.16.0.1"
         }
         #"8010" = {

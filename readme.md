@@ -6,7 +6,7 @@ After experiencing several hardware failures, particularly with storage media, I
 
 - **`terraform/`**: Infrastructure as Code for managing Proxmox VMs.
 - **`ansible/`**: Automation for VM templates and Kubernetes setup.
-- **`ansible-poc/`**: Proof of concept for testing Ansible roles and playbooks.
+- **`ansible-poc/`**: Proof of concept that uses Ansible to configure VM's and base cloud-init templates in Proxmox.
 - **`kubernetes/`**: Kubernetes manifests for cluster management.
 
 Refer to the individual directories for detailed documentation.

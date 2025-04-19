@@ -25,7 +25,7 @@ resource "proxmox_vm_qemu" "prod" {
         scsi {
             scsi0 {
                 disk {
-                    size            = lookup(each.value, "disk_size", "20G")
+                    size            = lookup(each.value, "disk_size", "100G")
                     cache           = lookup(each.value, "disk_cache", "writeback")
                     storage         = lookup(each.value, "disk_storage", "local")
                     discard         = lookup(each.value, "disk_discard", true)

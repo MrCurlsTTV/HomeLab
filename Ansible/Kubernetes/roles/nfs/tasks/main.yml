@@ -21,3 +21,30 @@
     state: mounted
   loop: "{{ nfs_mounts_master if ansible_hostname in groups['k8s-master'] else nfs_mounts_worker }}"
   become: true
+
+- name: Check PVCs for Rancher Monitoring
+  kubernetes.core.k8s_facts:
+    kind: PersistentVolumeClaim
+    namespace: cattle-monitoring-system
+  register: pvc_facts
+  when: ansible_hostname == 'k8s-master-0'
+  ignore_errors: true
+
+- name: Create PVC for Rancher Monitoring
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: rancher-monitoring-pvc
+        namespace: cattle-monitoring-system
+      spec:
+        accessModes:
+          - ReadWriteMany
+        resources:
+          requests:
+            storage: 100Gi
+        storageClassName: monitoring-data-nfs
+  when: ansible_hostname == 'k8s-master-0' and "'rancher-monitoring-pvc' not in pvc_facts.resources | map(attribute='metadata.name')"
+  register: pvc_creation

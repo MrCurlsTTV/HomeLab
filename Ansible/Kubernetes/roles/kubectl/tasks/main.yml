@@ -3,7 +3,7 @@
     name: kubectl
     classic: yes
     state: present
-  when: ansible_hostname in groups['k8s-master']
+  when: ansible_hostname in groups['k8smaster']
   register: kubectl_master
   retries: 3
   delay: 10
@@ -16,21 +16,25 @@
     - { home: '/home/{{ ansible_ssh_user }}', owner: "{{ ansible_ssh_user }}"}
   loop_control:
     loop_var: kube_user
-  when: ansible_hostname in groups['k8s-master']
+  when: ansible_hostname in groups['k8smaster']
 
 - name: Check Nodes
-  community.kubernetes.k8s_facts:
-  when: ansible_hostname in groups['k8s-master']
+  kubernetes.core.k8s_info:
+    kind: Node
+  when: ansible_hostname in groups['k8smaster']
   register: nodes_master
   ignore_errors: true
 
 - name: Extract specific node information
   debug:
-    msg: "{{ nodes_master.resources.nodes | selectattr('metadata.name', 'equalto', 'node-name') | list }}"
-  when: ansible_hostname in groups['k8s-master']
+    msg: "{{ nodes_master.resources | selectattr('metadata.name', 'equalto', 'node-name') | list }}"
+  when: 
+    - ansible_hostname in groups['k8smaster']
+    - nodes_master is defined
+    - nodes_master.resources is defined
 
 - name: Create Namespaces
-  community.kubernetes.k8s:
+  kubernetes.core.k8s:
     state: present
     definition:
       apiVersion: v1
@@ -49,14 +53,14 @@
   register: create_namespace_master
 
 - name: Install Metallb using URL
-  community.kubernetes.k8s:
+  kubernetes.core.k8s:
     state: present
     src: "https://raw.githubusercontent.com/metallb/metallb/{{ metallb_version }}/manifests/metallb-native.yaml"
   when: ansible_hostname == 'k8s-master-0'
   register: metallb_install
 
 - name: Install Metallb Config
-  community.kubernetes.k8s:
+  kubernetes.core.k8s:
     state: present
     src: "{{ item }}"
   loop:

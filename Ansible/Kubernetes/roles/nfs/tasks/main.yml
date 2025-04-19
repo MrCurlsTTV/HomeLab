@@ -47,4 +47,4 @@
             storage: 100Gi
         storageClassName: monitoring-data-nfs
   when: ansible_hostname == 'k8s-master-0' and "'rancher-monitoring-pvc' not in pvc_facts.resources | map(attribute='metadata.name')"
-  register: pvc_creation
+  register: pvc_creation_rancher

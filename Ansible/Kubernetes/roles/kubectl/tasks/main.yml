@@ -1,14 +1,16 @@
 - name: Install Kubectl on Masters
-  command: >
-    snap install kubectl --classic
+  community.general.snap:
+    name: kubectl
+    classic: yes
+    state: present
   when: ansible_hostname in groups['k8s-master']
   register: kubectl_master
-  timeout: 45
   retries: 3
   delay: 10
+  timeout: 45
 
 - name: Ensure Kube Config Directory is reset and updated
-  include_tasks: kube_config.yml
+  include_tasks: kube-config.yml
   loop:
     - { home: '/root', owner: 'root'}
     - { home: '/home/{{ ansible_ssh_user }}', owner: "{{ ansible_ssh_user }}"}
@@ -17,25 +19,70 @@
   when: ansible_hostname in groups['k8s-master']
 
 - name: Check Nodes
-  command: >
-    kubectl get nodes
+  community.kubernetes.k8s_facts:
   when: ansible_hostname in groups['k8s-master']
   register: nodes_master
   ignore_errors: true
 
-- name: Debug Node Check
+- name: Extract specific node information
   debug:
-    msg: "Node check output: {{ nodes_master.stdout }}"
+    msg: "{{ nodes_master.resources.nodes | selectattr('metadata.name', 'equalto', 'node-name') | list }}"
   when: ansible_hostname in groups['k8s-master']
 
 - name: Create Namespaces
-  command: >
-    kubectl create namespace {{ item }}
+  community.kubernetes.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ item }}"
   loop:
     - istio-system
     - metallb-system
     - argocd
     - cattle-system
     - keda
-  when: ansible_hostname in groups['k8s-master'] == 'k8s-master-0'
+    - cattle-monitoring-system
+    - cert-manager
+  when: ansible_hostname == 'k8s-master-0'
   register: create_namespace_master
+
+- name: Install Metallb using URL
+  community.kubernetes.k8s:
+    state: present
+    src: "https://raw.githubusercontent.com/metallb/metallb/{{ metallb_version }}/manifests/metallb-native.yaml"
+  when: ansible_hostname == 'k8s-master-0'
+  register: metallb_install
+
+- name: Install Metallb Config
+  community.kubernetes.k8s:
+    state: present
+    src: "{{ item }}"
+  loop:
+    - "{{ playbook_dir }}/Kubernetes/metallb-config.yml"
+  when: ansible_hostname == 'k8s-master-0'
+  register: metallb_config
+
+- name: Check if the CRD for gate exists
+  kubernetes.core.k8s_info:
+    kind: CustomerResourceDefinition
+    name: gateways.gateway.networking.k8s.io
+  register: crd_check
+  ignore_errors: true
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Download the CRD YAML
+  get_url:
+    url: "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml"
+    dest: /tmp/standard-install.yaml
+    mode: '0755'
+  register: crd_yaml
+  when: ansible_hostname == 'k8s-master-0' and crd_check.failed
+
+- name: Apply CRD
+  ansible.builtin.k8s:
+    state: present
+    definition: "{{ lookup ('file'. '/tmp/standard-install.yaml') | from_yaml }}"
+  when: ansible_hostname == 'k8s-master-0' and crd_check.failed
+  become: true

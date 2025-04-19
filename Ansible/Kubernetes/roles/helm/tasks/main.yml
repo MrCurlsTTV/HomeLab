@@ -153,6 +153,6 @@
         enabled: true
         retention: 7d
     state: present
-  when: ansible_hostname == 'k8s-master-0' and pvc_creation is changed
+  when: ansible_hostname == 'k8s-master-0' and pvc_creation_rancher is changed
   register: rancher_monitoring_install
   until: rancher_monitoring_install.resources[0].status.readyReplicas == rancher_monitoring_install.resources[0].status.replicas

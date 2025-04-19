@@ -1,0 +1,23 @@
+- name: Install NFS client
+  ansible.builtin.package:
+    name: "{{ 'nfs-common' if ansible_os_family == 'Debian' else 'nfs-utils' }}"
+    state: present
+  become: true
+
+- name: Ensure all NFS mount points exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ nfs_mounts_master if ansible_hostname in groups['k8s-master'] else nfs_mounts_worker }}"
+  become: true
+
+- name: Mount all NFS shares and persist them in fstab
+  ansible.builtin.mount:
+    path: "{{ item.path }}"
+    src: "{{ item.src }}"
+    fstype: nfs
+    opts: defaults
+    state: mounted
+  loop: "{{ nfs_mounts_master if ansible_hostname in groups['k8s-master'] else nfs_mounts_worker }}"
+  become: true

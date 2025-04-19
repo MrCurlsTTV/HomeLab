@@ -1,15 +1,8 @@
 #roles/create_templates/tasks/main.yml
-- name: Check Installed Packages
-  shell: |
-    dpkg -l | grep libguestfs-tools
-  register: check_result
-  ignore_errors: yes
-  changed_when: false
-
-- name: Install Required Tools
-  command: >
-    sudo apt install libguestfs-tools -y
-  when: check_result.rc != 0
+- name: Ensure libguestfs-tools is installed
+  ansible.builtin.apt:
+    name: libguestfs-tools
+    state: present
   become: true
 
 - name: Set image details per distribution
@@ -65,7 +58,6 @@
   loop: "{{ releases }}"
   when: item.template_vm_id is defined
 
-
 - name: Destroy existing VM
   command: >
     qm destroy {{ item.template_vm_id }}
@@ -114,24 +106,27 @@
 
 - name: Debug - Image Details
   debug:
-    msg: "Processing {{ item.distro | upper }} {{ item.name }} (version {{ item.version }})"
+    msg: >
+      Processing {{ item.distro | upper }} {{ item.name }} (version {{ item.version }})
   loop: "{{ releases }}"
   when: item.distro is defined
 
 - name: Debug - Download Results
   debug:
-    msg: >-
+    msg: >
       Image download for {{ item.name }}:
-      URL: {{ item.url }}
-      Destination: {{ item.dest }}
-      Status: {{ item.changed | ternary('Downloaded', 'Already exists') }}
+      URL: {{ get_url_result.results[ansible_loop_var].url }}
+      Destination: {{ get_url_result.results[ansible_loop_var].dest }}
+      Status: {{ get_url_result.results[ansible_loop_var].changed | ternary('Downloaded', 'Already exists') }}
   loop: "{{ get_url_result.results }}"
-  when: item is defined
+  loop_control:
+    index_var: ansible_loop_var
+  when: ansible_loop_var < get_url_result.results | length
 
 - name: Debug - Package Lists
   debug:
-    msg: >-
-      Packages for {{ item.name }}:
+    msg: >
+      Packages for {{ releases[ansible_loop_var].name }}:
       {{ package_lists.results[ansible_loop_var].ansible_facts.package_list | join(', ') }}
   loop: "{{ releases }}"
   loop_control:
@@ -140,8 +135,8 @@
 
 - name: Debug - Image Customization
   debug:
-    msg: >-
-      Customizing {{ item.name }}:
+    msg: >
+      Customizing {{ releases[ansible_loop_var].name }}:
       Status: {{ customize_image_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
   loop: "{{ releases }}"
   loop_control:
@@ -150,8 +145,8 @@
 
 - name: Debug - VM Operations
   debug:
-    msg: >-
-      VM {{ item.template_vm_id }} ({{ item.distro }}-{{ item.version }}):
+    msg: >
+      VM {{ releases[ansible_loop_var].template_vm_id }} ({{ releases[ansible_loop_var].distro }}-{{ releases[ansible_loop_var].version }}):
       Stop: {{ stop_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
       Destroy: {{ destroy_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
       Create: {{ qm_create_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
@@ -162,8 +157,8 @@
 
 - name: Debug - Import and Configure
   debug:
-    msg: >-
-      VM {{ item.template_vm_id }} Configuration:
+    msg: >
+      VM {{ releases[ansible_loop_var].template_vm_id }} Configuration:
       Storage Import: {{ qm_set.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
       Settings: {{ qm_set.results[ansible_loop_var].stdout_lines | default(['No output']) | join(', ') }}
   loop: "{{ releases }}"
@@ -173,8 +168,8 @@
 
 - name: Debug - Template Conversion
   debug:
-    msg: >-
-      Template {{ item.template_vm_id }}:
+    msg: >
+      Template {{ releases[ansible_loop_var].template_vm_id }}:
       Status: {{ template_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
   loop: "{{ releases }}"
   loop_control:
@@ -183,7 +178,7 @@
 
 - name: Debug - Final Summary
   debug:
-    msg: >-
+    msg: >
       Template Creation Summary:
       Total templates processed: {{ releases | length }}
       Successful downloads: {{ get_url_result.results | selectattr('changed', 'equalto', true) | list | length }}

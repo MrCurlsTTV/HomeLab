@@ -1,0 +1,185 @@
+- name: Download helm
+  get_url:
+    url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+    dest: /tmp/get_helm.sh
+    mode: '700'
+  when: ansible_hostname in groups['k8s-master']
+  register: helm_download
+
+- name: Check if Helm is already installed
+  ansible.builtin.command: helm version --short
+  register: helm_check
+  failed_when: false
+  changed_when: false
+  when: ansible_hostname in groups['k8s-master']
+
+- name: Install Helm if not present
+  ansible.builtin.command: /tmp/get_helm.sh
+  when:
+    - ansible_hostname in groups['k8s-master']
+    - helm_check.rc != 0
+  register: helm_install
+  retries: 3
+  delay: 10
+  args:
+    warn: false
+
+- name: Remove Helm install script
+  ansible.builtin.file:
+    path: /tmp/get_helm.sh
+    state: absent
+  when: ansible_hostname in groups['k8s-master']
+
+- name: Add required Helm repositories
+  community.kubernetes.helm_repository:
+    name: "{{ item.name }}"
+    repo_url: "{{ item.url }}"
+    state: present
+  loop:
+    - { name: 'jetstack', url: 'https://charts.jetstack.io' }
+    - { name: 'rancher-stable', url: 'https://releases.rancher.com/server-charts/stable' }
+    - { name: 'kedacore', url: 'https://kedacore.github.io/charts' }
+    - { name: 'metallb', url: 'https://metallb.github.io/metallb' }
+    - { name: 'argo', url: 'https://argoproj.github.io/argo-helm' }
+    - { name: 'longhorn', url: 'https://charts.longhorn.io' }
+    - { name: 'bitnami', url: 'https://charts.bitnami.com/bitnami' }
+    - { name: 'istio', url: 'https://istio-release.storage.googleapis.com/charts' }
+    - { name: 'nfs-subdir-external-provisioner', url: 'https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner' }
+  when: ansible_hostname in groups['k8s-master']
+  register: helm_repo_add
+
+- name: Update all Helm repos
+  ansible.builtin.command: helm repo update
+  when: ansible_hostname in groups['k8s-master']
+  register: helm_update
+
+- name: Install Helm test chart with module
+  community.kubernetes.helm:
+    name: mysql-test
+    chart_ref: bitnami/mysql
+    namespace: mysql-test
+    create_namespace: true
+    state: present
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Uninstall Helm test chart
+  community.kubernetes.helm:
+    name: mysql-test
+    namespace: mysql-test
+    state: absent
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Install NFS provisioners
+  community.kubernetes.helm:
+    name: "nfs-{{ item.name }}"
+    chart_ref: nfs-subdir-external-provisioner/nfs-subdir-external-provisioner
+    release_namespace: kube-system
+    values:
+      nfs:
+        server: "{{ nfs_server }}"
+        path: "{{ item.path }}"
+      storageClass:
+        name: "{{ item.storage_class }}"
+        defaultClass: false
+        reclaimPolicy: Retain
+    state: present
+  loop: "{{ nfs_provisioners }}"
+  when: ansible_hostname == 'k8s-master-0'
+  register: nfs_provisioner_install
+  until: nfs_provisioner_install.resources[0].status.readyReplicas == nfs_provisioner_install.resources[0].status.replicas
+
+- name: Install cert-manager using Helm
+  community.kubernetes.helm:
+    name: cert-manager
+    chart_ref: jetstack/cert-manager
+    namespace: cert-manager
+    version: "{{ cert_manager_version }}"
+    values:
+      installCRDs: true
+  register: cm_deploy
+  until: cm_deploy.resources[0].status.readyReplicas == cm_deploy.resources[0].status.replicas
+  when: ansible_hostname == 'k8s-master-0'
+
+
+- name: Install Rancher via Helm
+  community.kubernetes.helm:
+    name: rancher
+    chart_ref: rancher-stable/rancher
+    namespace: cattle-system
+    values:
+      hostname: rancher.{{ my_domain }}
+      installCRDs: true
+      extraEnvs:
+        - name: CATTLE_BOOTSTRAP_PASSWORD
+          value: "{{ rancher_bootstrap_password }}"
+        - name: istio-virtual-service-ui
+          value: true
+        - name: CATTLE_PROMETHEUS_METRICS
+          value: true
+    version: "{{ rancher_version }}"
+  when: ansible_hostname == 'k8s-master-0'
+  register: rancher_install
+  until: rancher_install.resources[0].status.readyReplicas == rancher_install.resources[0].status.replicas
+
+- name: Patch Rancher Service with MetalLb annotations
+  kubernetes.core.k8s:
+    api_version: v1
+    kind: Service
+    name: rancher
+    namespace: cattle-system
+    merge_type: strategic-merge
+    definition:
+      metadata:
+        annotations:
+          metallb.universe.tf/address-pool: metallb-ip-pool
+        spec:
+          type: LoadBalancer
+          LoadBalancerIP: 172.16.12.1
+  when: ansible_hostname == 'k8s-master-0'
+  register: rancher_patch
+  until: rancher_patch.status == 'Success'
+
+- name: Check PVCs for Rancher Monitoring
+  kubernetes.core.k8s_facts:
+    kind: PersistentVolumeClaim
+    namespace: cattle-monitoring-system
+  register: pvc_facts
+  when: ansible_hostname == 'k8s-master-0'
+  ignore_errors: true
+
+- name: Create PVC for Rancher Monitoring
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: rancher-monitoring-pvc
+        namespace: cattle-monitoring-system
+      spec:
+        accessModes:
+          - ReadWriteMany
+        resources:
+          requests:
+            storage: 100Gi
+        storageClassName: monitoring-data-nfs
+  when: ansible_hostname == 'k8s-master-0' and "'rancher-monitoring-pvc' not in pvc_facts.resources | map(attribute='metadata.name')"
+  register: pvc_creation
+
+- name: Ranchern Montioring
+  community.kubernetes.helm:
+    name: rancher-monitoring
+    chart_ref: rancher-stable/rancher-monitoring
+    namespace: cattle-monitoring-system
+    values:
+      persistence:
+        enabled: true
+        existingClaim: rancher-monitoring-pvc
+      storageClass: monitoring-data-nfs
+      retention:
+        enabled: true
+        retention: 30d
+    state: present
+  when: ansible_hostname == 'k8s-master-0' and pvc_creation is changed
+  register: rancher_monitoring_install
+  until: rancher_monitoring_install.resources[0].status.readyReplicas == rancher_monitoring_install.resources[0].status.replicas

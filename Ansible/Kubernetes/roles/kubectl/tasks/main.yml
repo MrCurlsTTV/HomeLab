@@ -77,6 +77,8 @@
     src: "/tmp/metallb-config.yml"
   when: ansible_hostname == 'k8s-master-0'
   register: metallb_config
+  retries: 10
+  delay: 10
 
 - name: Clean up Metallb config file
   ansible.builtin.file:

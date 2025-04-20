@@ -15,7 +15,7 @@
 - name: Mount all NFS shares and persist them in fstab
   ansible.posix.mount:
     path: "{{ item.path }}"
-    src: "{{nfs_server}}:{{ item.src }}"
+    src: "{{nfs_server}}.{{ domain_name }}:{{ item.src }}"
     fstype: nfs
     opts: defaults
     state: mounted

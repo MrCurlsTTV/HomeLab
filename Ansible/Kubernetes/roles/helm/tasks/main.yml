@@ -28,6 +28,44 @@
     state: absent
   when: ansible_hostname in groups['k8smaster']
 
+- name: Remove existing helm config directory for all users (if exists)
+  ansible.builtin.file:
+    path: "/home/{{ item }}/.config/helm"
+    state: absent
+  loop:
+    - ansible
+  become: true
+  when: ansible_hostname in groups['k8smaster']
+
+- name: Create symlink to Helm config for all users # Runs as root by default when adding repo's with the builtin kubernetes.core.helm_repository module
+  ansible.builtin.file:
+    src: /etc/helm/config/helm
+    dest: "/home/{{ item }}/.config/helm"
+    state: link
+  loop:
+    - ansible
+  become: true
+  when: ansible_hostname in groups['k8smaster']
+
+- name: Find all files in the helm config directory
+  ansible.builtin.find:
+    paths: "/home/ansible/.config/helm"
+    recurse: yes
+  register: helm_files
+  become: true
+  when: ansible_hostname in groups['k8smaster']
+
+- name: Set correct permissions and ownership for files in the helm config directory
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: ansible
+    group: ansible
+    mode: '0775'
+  with_items: "{{ helm_files.files }}"
+  become: true
+  when: ansible_hostname in groups['k8smaster']
+
+
 - name: Add required Helm repositories
   kubernetes.core.helm_repository:
     name: "{{ item.name }}"
@@ -71,31 +109,36 @@
   kubernetes.core.helm:
     name: "nfs-{{ item.name }}"
     chart_ref: nfs-subdir-external-provisioner/nfs-subdir-external-provisioner
-    release_namespace: kube-system
+    release_namespace: nfs-provisoners
     values:
       nfs:
-        server: "{{ nfs_server }}"
+        server: "{{ nfs_server }}.{{ domain_name }}"
         path: "{{ item.path }}"
       storageClass:
-        name: "{{ item.storage_class }}"
+        name: "{{ item.Storage_class }}"
         defaultClass: false
         reclaimPolicy: Retain
     state: present
   loop: "{{ nfs_provisioners }}"
   when: ansible_hostname == 'k8s-master-0'
   register: nfs_provisioner_install
-  until: nfs_provisioner_install.resources[0].status.readyReplicas == nfs_provisioner_install.resources[0].status.replicas
+  retries: 5
+  delay: 10
+  until: nfs_provisioner_install is succeeded
+
 
 - name: Install cert-manager using Helm
   kubernetes.core.helm:
     name: cert-manager
     chart_ref: jetstack/cert-manager
-    namespace: cert-manager
-    version: "{{ cert_manager_version }}"
+    chart_version: "{{ cert_manager_version }}"
+    release_namespace: cert-manager
     values:
       installCRDs: true
   register: cm_deploy
-  until: cm_deploy.resources[0].status.readyReplicas == cm_deploy.resources[0].status.replicas
+  retries: 2
+  delay: 10
+  until: cm_deploy is succeeded
   when: ansible_hostname == 'k8s-master-0'
 
 
@@ -105,7 +148,7 @@
     chart_ref: rancher-stable/rancher
     namespace: cattle-system
     values:
-      hostname: rancher.{{ my_domain }}
+      hostname: rancher.{{ domain_name }}
       installCRDs: true
       extraEnvs:
         - name: CATTLE_BOOTSTRAP_PASSWORD
@@ -117,7 +160,7 @@
     version: "{{ rancher_version }}"
   when: ansible_hostname == 'k8s-master-0'
   register: rancher_install
-  until: rancher_install.resources[0].status.readyReplicas == rancher_install.resources[0].status.replicas
+  until: rancher_install is succeeded
 
 - name: Patch Rancher Service with MetalLb annotations
   kubernetes.core.k8s:
@@ -153,4 +196,4 @@
     state: present
   when: ansible_hostname == 'k8s-master-0' and pvc_creation_rancher is changed
   register: rancher_monitoring_install
-  until: rancher_monitoring_install.resources[0].status.readyReplicas == rancher_monitoring_install.resources[0].status.replicas
+  until: rancher_monitoring_install is succeeded

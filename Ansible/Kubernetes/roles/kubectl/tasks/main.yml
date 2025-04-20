@@ -49,6 +49,7 @@
     - keda
     - cattle-monitoring-system
     - cert-manager
+    - nfs-provisoners
   when: ansible_hostname == 'k8s-master-0'
   register: create_namespace_master
 
@@ -64,14 +65,24 @@
     src: "/tmp/metallb-native.yaml"
   when: ansible_hostname == 'k8s-master-0'
 
-- name: Install Metallb Config
+- name: Copy Metallb Config to remote host
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/k8smanifests/metallb-config.yml"
+    dest: "/tmp/metallb-config.yml"
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Apply Metallb Config from remote file
   kubernetes.core.k8s:
     state: present
-    src: "{{ item }}"
-  loop:
-    - "{{ playbook_dir }}/k8smanifests/metallb-config.yml"
+    src: "/tmp/metallb-config.yml"
   when: ansible_hostname == 'k8s-master-0'
   register: metallb_config
+
+- name: Clean up Metallb config file
+  ansible.builtin.file:
+    path: /tmp/metallb-config.yml
+    state: absent
+  when: ansible_hostname == 'k8s-master-0'
 
 - name: Check if the CRD for gateway exists
   kubernetes.core.k8s_info:

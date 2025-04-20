@@ -52,23 +52,28 @@
   when: ansible_hostname == 'k8s-master-0'
   register: create_namespace_master
 
-- name: Install Metallb using URL
+- name: Download Metallb manifest
+  get_url:
+    url: "https://raw.githubusercontent.com/metallb/metallb/{{ metallb_version }}/config/manifests/metallb-native.yaml"
+    dest: "/tmp/metallb-native.yaml"
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Apply Metallb manifest
   kubernetes.core.k8s:
     state: present
-    src: "https://raw.githubusercontent.com/metallb/metallb/{{ metallb_version }}/manifests/metallb-native.yaml"
+    src: "/tmp/metallb-native.yaml"
   when: ansible_hostname == 'k8s-master-0'
-  register: metallb_install
 
 - name: Install Metallb Config
   kubernetes.core.k8s:
     state: present
     src: "{{ item }}"
   loop:
-    - "{{ playbook_dir }}/Kubernetes/metallb-config.yml"
+    - "{{ playbook_dir }}/k8smanifests/metallb-config.yml"
   when: ansible_hostname == 'k8s-master-0'
   register: metallb_config
 
-- name: Check if the CRD for gate exists
+- name: Check if the CRD for gateway exists
   kubernetes.core.k8s_info:
     kind: CustomerResourceDefinition
     name: gateways.gateway.networking.k8s.io

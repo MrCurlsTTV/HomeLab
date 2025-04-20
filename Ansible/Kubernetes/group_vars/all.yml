@@ -4,6 +4,9 @@ rancher_bootstrap_password: "admin"
 metallb_version: "v0.14.9"
 rancher_version: "2.10.3"
 cert_manager_version: "v1.17.0"
+helm_users:
+  - ansible
+  - root
 
 nfs_provisioners:
   - name: vault-data
@@ -11,19 +14,19 @@ nfs_provisioners:
     Storage_class: vault-data-nfs
 
   - name: influxdb
-    path: /mnt/Data/InfluxDB
+    path: /mnt/Vault/Data/InfluxDB
     Storage_class: influxdb-nfs
   
   - name: etcd
-    path: /mnt/Data/etcd
+    path: /mnt/Vault/Data/etcd
     Storage_class: etcd-nfs
   
   - name: flash-configs
-    path: /mnt/Configs
+    path: /mnt/Flash/Configs
     Storage_class: flash-configs-nfs
   
   - name: monitoring-data
-    path: /mnt/Data/Monitoring
+    path: /mnt/Vault/Data/monitoring-data
     Storage_class: monitoring-data-nfs
 
 nfs_mounts:

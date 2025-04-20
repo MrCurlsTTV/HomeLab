@@ -48,5 +48,5 @@ distributions:
 # VM Configuration
 memory_size: 2048
 network_bridge: vmbr0
-cloudinit_storage: "configs:cloudinit"
-local_storage: "Backups"
+cloudinit_storage: "data:cloudinit"
+local_storage: "data"

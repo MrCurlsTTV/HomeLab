@@ -116,3 +116,9 @@
   retries: 2
   delay: 20
   ignore_errors: true
+
+- name: Ensure 'kubernetes' Python module is installed # For ansible bug related to modules
+  pip:
+    name: kubernetes
+    executable: pip3
+  become: true

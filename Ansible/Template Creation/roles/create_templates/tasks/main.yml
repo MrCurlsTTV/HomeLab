@@ -114,7 +114,7 @@
 - name: Debug - Download Results
   debug:
     msg: >
-      Image download for {{ item.name }}:
+      Image download for {{ get_url_result.results[ansible_loop_var].name }}:
       URL: {{ get_url_result.results[ansible_loop_var].url }}
       Destination: {{ get_url_result.results[ansible_loop_var].dest }}
       Status: {{ get_url_result.results[ansible_loop_var].changed | ternary('Downloaded', 'Already exists') }}

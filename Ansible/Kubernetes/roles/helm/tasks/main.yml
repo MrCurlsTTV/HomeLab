@@ -21,8 +21,6 @@
   register: helm_install
   retries: 3
   delay: 10
-  args:
-    warn: false
 
 - name: Remove Helm install script
   ansible.builtin.file:
@@ -139,7 +137,7 @@
   register: rancher_patch
   until: rancher_patch.status == 'Success'
 
-- name: Ranchern Montioring
+- name: Rancher Montioring
   kubernetes.core.helm:
     name: rancher-monitoring
     chart_ref: rancher-stable/rancher-monitoring

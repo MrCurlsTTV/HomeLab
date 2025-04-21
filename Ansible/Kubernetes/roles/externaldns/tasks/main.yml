@@ -1,0 +1,12 @@
+- name: Create Secret for Unifi Credentials
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: external-dns-unifi-secret
+        namespace: external-dns
+      type: Opaque
+      stringData:
+        UNIFI_API_KEY: "{{ unifi_key }}"

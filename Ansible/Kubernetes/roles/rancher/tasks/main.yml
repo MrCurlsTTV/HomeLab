@@ -1,0 +1,66 @@
+
+
+- name: Install Rancher via Helm
+  kubernetes.core.helm:
+    name: rancher
+    chart_ref: rancher-stable/rancher
+    namespace: cattle-system
+    values:
+      hostname: rancher.{{ domain_name }}
+      installCRDs: true
+      extraEnvs:
+        - name: CATTLE_BOOTSTRAP_PASSWORD
+          value: "{{ rancher_bootstrap_password }}"
+        - name: istio-virtual-service-ui
+          value: true
+        - name: CATTLE_PROMETHEUS_METRICS
+          value: true
+    chart_version: "{{ rancher_version }}"
+  when: ansible_hostname == 'k8s-master-0'
+  register: rancher_install
+  until: rancher_install is succeeded
+
+- name: Patch Rancher Service with MetalLb annotations
+  kubernetes.core.k8s:
+    api_version: v1
+    kind: Service
+    name: rancher
+    namespace: cattle-system
+    merge_type: strategic-merge
+    definition:
+      metadata:
+        annotations:
+          metallb.universe.tf/address-pool: metallb-ip-pool
+        spec:
+          type: LoadBalancer
+          LoadBalancerIP: 172.16.12.1
+  when: ansible_hostname == 'k8s-master-0'
+  register: rancher_patch
+  until: rancher_patch is succeeded
+
+- name: Install Rancher Monitoring CRDs
+  kubernetes.core.helm:
+    name: rancher-monitoring-crd
+    chart_ref: rancher-charts/rancher-monitoring-crd
+    namespace: cattle-monitoring-system
+    create_namespace: true
+    state: present
+  when: ansible_hostname == 'k8s-master-0'
+  register: rancher_monitor_crd
+  
+- name: Rancher Montioring
+  kubernetes.core.helm:
+    name: rancher-monitoring
+    chart_ref: rancher-charts/rancher-monitoring
+    namespace: cattle-monitoring-system
+    values:
+      persistence:
+        enabled: true
+        existingClaim: rancher-monitoring-pvc
+      storageClass: monitoring-data-nfs
+      retention:
+        enabled: true
+        retention: 7d
+    state: present
+  when: ansible_hostname == 'k8s-master-0'
+  register: rancher_monitoring_install

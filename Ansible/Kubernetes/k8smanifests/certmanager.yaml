@@ -3,7 +3,6 @@ kind: Namespace
 metadata:
   name: cert-manager
   labels:
-    istio-injection: enabled
 
 ---
 apiVersion: cert-manager.io/v1

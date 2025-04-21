@@ -50,8 +50,33 @@
     - cattle-monitoring-system
     - cert-manager
     - nfs-provisoners
+    - external-dns
   when: ansible_hostname == 'k8s-master-0'
   register: create_namespace_master
+
+- name: Copy Mainfests
+  copy:
+    src: "{{ playbook_dir }}/k8smanifests"
+    dest: "/tmp/k8smanifests"
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Find all files in the helm config directory
+  ansible.builtin.find:
+    paths: "/tmp/k8smanifests"
+    recurse: yes
+  register: manifest_files
+  become: true
+  when: ansible_hostname == 'k8s-master-0'
+
+- name: Set correct permissions and ownership for files in the helm config directory
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: ansible
+    group: ansible
+    mode: '0775'
+  with_items: "{{ manifest_files.files }}"
+  become: true
+  when: ansible_hostname == 'k8s-master-0'
 
 - name: Download Metallb manifest
   get_url:
@@ -65,16 +90,10 @@
     src: "/tmp/metallb-native.yaml"
   when: ansible_hostname == 'k8s-master-0'
 
-- name: Copy Metallb Config to remote host
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/k8smanifests/metallb-config.yml"
-    dest: "/tmp/metallb-config.yml"
-  when: ansible_hostname == 'k8s-master-0'
-
 - name: Apply Metallb Config from remote file
   kubernetes.core.k8s:
     state: present
-    src: "/tmp/metallb-config.yml"
+    src: "/tmp/metallb-config.yaml"
   when: ansible_hostname == 'k8s-master-0'
   register: metallb_config
   retries: 10
@@ -82,7 +101,7 @@
 
 - name: Clean up Metallb config file
   ansible.builtin.file:
-    path: /tmp/metallb-config.yml
+    path: /tmp/metallb-config.yaml
     state: absent
   when: ansible_hostname == 'k8s-master-0'
 

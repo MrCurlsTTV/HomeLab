@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: external-dns
+  namespace: external-dns
+---
+apiVersion: apps/v1
+kind: deployment
+metadata:
+  name: external-dns
+  namespace: external-dns
+spec:
+  replicas: 1
+  selector: 
+    matchLabels:
+      apps: external-dns
+  template:
+    metadata:
+      labels:
+        app: external-dns
+    spec:
+      serviceAccountName: external-dns
+      containers:
+        - name: external-dns
+          image: ghcr.io/kashalls/external-dns-unifi-webhook:main
+          args:
+            - --source=istio-gateway
+            - --provider=webhook
+            - --webhook-provider=unifi
+            - --webhook-url=http://localhost:8888
+            - --log-level=debug
+            - --policy=sync
+          env:
+            - name: UNFI_HOST
+              value: "https://unifi-controller.local"
+            - name: UNIFI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: external-dns-unifi-secret
+                  key: UNIFI_API_KEY

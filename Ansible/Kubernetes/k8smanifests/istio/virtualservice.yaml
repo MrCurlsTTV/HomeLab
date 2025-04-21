@@ -1,0 +1,28 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: rancher-and-argocd
+  namespace: istio-system
+spec:
+  hosts:
+    - "rancher.mrcurls.org"
+    - "argocd.mrcurls.org"
+  gateways:
+    - istio-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: rancher.cattle-system.svc.cluster.local  # Rancher service
+            port:
+              number: 80
+    - match:
+        - uri:
+            prefix: /argocd
+      route:
+        - destination:
+            host: argocd-server.argocd.svc.cluster.local  # ArgoCD service
+            port:
+              number: 80

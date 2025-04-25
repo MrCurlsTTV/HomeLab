@@ -1,0 +1,26 @@
+---
+# Configuration for worker nodes
+server: https://{{ hostvars[groups['rke2_servers'][0]]['ansible_host'] }}:9345
+token: {{ rke2_node_token }}
+node-ip: {{ ansible_host }}
+node-external-ip: {{ ansible_host }}
+node-label:
+{% if node_labels is defined %}
+{% for label in node_labels %}
+{% if label is search("node-role.kubernetes.io/worker") %}
+  - "node.kubernetes.io/role=worker"
+{% else %}
+  - "{{ label }}"
+{% endif %}
+{% endfor %}
+{% else %}
+  - "node.kubernetes.io/role=worker"
+{% endif %}
+kubelet-arg:
+  - "max-pods=110"
+  - "system-reserved=cpu=500m,memory=500Mi"
+  - "kube-reserved=cpu=500m,memory=500Mi"
+tls-san:
+  - "{{ ansible_host }}"
+  - "{{ inventory_hostname }}"
+  - "{{ inventory_hostname }}.{{ domain_name }}" 

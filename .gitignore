@@ -48,6 +48,5 @@ sshkeys.txt
 # Binary
 terraform-provider-proxmox*
 
-# VScode / Cursor
+# VScode
 .vscode/settings.json
-.cursorrules

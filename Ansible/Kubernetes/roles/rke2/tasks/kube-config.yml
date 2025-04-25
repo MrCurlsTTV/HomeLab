@@ -1,3 +1,5 @@
+---
+# File: Ansible\roles\rke2\tasks\kube-config.yml
 - name: Remove Existing Kube Config
   file:
     path: "{{ kube_user.home }}/.kube"
@@ -16,4 +18,4 @@
     dest: "{{ kube_user.home }}/.kube/config"
     mode: '0644'
     owner: "{{ kube_user.owner }}"
-    remote_src: yes
+    remote_src: yes 

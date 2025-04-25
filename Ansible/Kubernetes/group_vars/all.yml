@@ -1,13 +1,26 @@
-nfs_server: "truenas"
+---
+# File: Ansible\group_vars\all.yml
+ansible_user: ubuntu
+ansible_become: true
+ansible_become_method: sudo
+
 domain_name: "mrcurls.org"
-rancher_bootstrap_password: "admin"
+
+rke2_version: "v1.28.8+rke2r1"
+kubernetes_version: "v1.28.8"
 metallb_version: "v0.14.9"
-rancher_version: "2.10.3"
 cert_manager_version: "v1.17.0"
+
 helm_users:
   - ansible
   - root
 
+cluster_cidr: "10.42.0.0/16"
+service_cidr: "10.43.0.0/16"
+cluster_dns: "10.43.0.10"
+cluster_domain: "cluster.local"
+
+nfs_server: "truenas"
 nfs_provisioners:
   - name: vault-data
     path: /mnt/Vault/Data
@@ -44,3 +57,21 @@ nfs_mounts:
 
   - path: /mnt/Data/Monitoring
     src: /mnt/Vault/Data/monitoring-data
+
+rancher_bootstrap_password: "admin"
+
+argocd_version: "latest"
+argocd_namespace: "argocd"
+argocd_values:
+  server:
+    service:
+      type: NodePort
+    ingress:
+      enabled: true
+      hosts:
+        - argocd.{{ domain_name }}
+      tls: true
+  dex:
+    enabled: false
+  notifications:
+    enabled: true 

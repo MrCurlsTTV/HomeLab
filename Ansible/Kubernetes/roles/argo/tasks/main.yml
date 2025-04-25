@@ -1,7 +1,0 @@
-
-- name: Copy Mainfests
-  copy:
-    src: "{{ playbook_dir }}/k8smanifests"
-    dest: "/tmp"
-    mode: "0777"
-  when: ansible_hostname == 'k8s-master-0'

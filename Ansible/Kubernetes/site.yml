@@ -1,0 +1,40 @@
+---
+# File: Ansible\site.yml
+- name: Setup NFS mounts
+  hosts: kubernetes
+  become: true
+  roles:
+    - nfs
+
+- name: Initialize first control plane node
+  hosts: rke2_servers[0]
+  become: true
+  vars:
+    is_first_control_plane: true
+  roles:
+    - role: rke2
+
+- name: Wait for first control plane to stabilize
+  hosts: rke2_servers[0]
+  become: true
+  tasks:
+    - name: Pause for 60 seconds
+      pause:
+        seconds: 60
+      delegate_to: localhost
+
+- name: Setup additional control plane nodes
+  hosts: rke2_servers[1:]
+  become: true
+  vars:
+    is_first_control_plane: false
+  roles:
+    - role: rke2
+
+- name: Setup worker nodes
+  hosts: rke2_agents
+  become: true
+  vars:
+    is_first_control_plane: false
+  roles:
+    - role: rke2 

@@ -1,0 +1,6 @@
+---
+# File: Ansible\roles\nfs\handlers\main.yml
+- name: restart nfs-client
+  service:
+    name: nfs-client.target
+    state: restarted 

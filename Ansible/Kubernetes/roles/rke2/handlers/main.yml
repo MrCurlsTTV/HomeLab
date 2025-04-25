@@ -1,0 +1,13 @@
+---
+# File: Ansible\roles\rke2\handlers\main.yml
+- name: restart rke2
+  systemd:
+    name: rke2-server
+    state: restarted
+    daemon_reload: yes
+
+- name: restart rke2-agent
+  systemd:
+    name: rke2-agent
+    state: restarted
+    daemon_reload: yes 

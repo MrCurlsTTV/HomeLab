@@ -1,13 +1,23 @@
 ---
 # File: Ansible\roles\rke2\defaults\main.yml
+# Installation paths
 rke2_install_path: "/usr/local/bin"
 rke2_config_path: "/etc/rancher/rke2"
+
+# Role configuration 
+rke2_role: "server"  # Can be 'server' or 'agent'
+rke2_server_url: "https://{{ ansible_host }}:6443"
+node_labels:
+  - "node.kubernetes.io/role=worker"  # Default label for worker nodes
+
+# Resource limits
 rke2_max_pods: 110
 rke2_system_reserved_cpu: "500m"
 rke2_system_reserved_memory: "500Mi"
 rke2_kube_reserved_cpu: "500m"
 rke2_kube_reserved_memory: "500Mi"
 
+# RKE2 configuration
 rke2_config:
   "tls-san":
     - "{{ ansible_host }}"
@@ -17,4 +27,9 @@ rke2_config:
   disable: []
   cni: "calico"
   service_node_port_range: "30000-32767"
+  # Use values from group_vars/all.yml for network configuration
+  cluster_cidr: "{{ cluster_cidr }}"
+  service_cidr: "{{ service_cidr }}"
+  cluster_dns: "{{ cluster_dns }}"
+  cluster_domain: "{{ cluster_domain }}"
   write_kubeconfig_mode: "0644"

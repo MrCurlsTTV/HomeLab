@@ -6,6 +6,7 @@ ansible_become_method: sudo
 
 domain_name: "mrcurls.org"
 
+# Version variables - centralized here
 rke2_version: "v1.28.8+rke2r1"
 kubernetes_version: "v1.28.8"
 metallb_version: "v0.14.9"
@@ -15,6 +16,7 @@ helm_users:
   - ansible
   - root
 
+# Network configuration - centralized here
 cluster_cidr: "10.42.0.0/16"
 service_cidr: "10.43.0.0/16"
 cluster_dns: "10.43.0.10"
@@ -60,6 +62,7 @@ nfs_mounts:
 
 rancher_bootstrap_password: "admin"
 
+# ArgoCD configuration - centralized here
 argocd_version: "latest"
 argocd_namespace: "argocd"
 argocd_values:

@@ -4,7 +4,7 @@
   hosts: kubernetes
   become: true
   roles:
-    - nfs
+    - role: nfs
 
 - name: Initialize first control plane node
   hosts: rke2_servers[0]

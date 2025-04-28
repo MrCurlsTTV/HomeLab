@@ -1,0 +1,205 @@
+---
+# Configure networking with VLAN support
+
+- name: Install vlan package
+  apt:
+    name: 
+      - vlan
+      - net-tools
+      - bridge-utils
+    state: present
+    update_cache: yes
+
+- name: Enable 8021q module
+  modprobe:
+    name: 8021q
+    state: present
+
+- name: Ensure 8021q module loads at boot
+  lineinfile:
+    path: /etc/modules
+    line: 8021q
+    state: present
+    create: yes
+
+# Force recreate the VLAN interface to ensure proper setup
+- name: Check if VLAN interface exists
+  shell: ip link show eth0.{{ vlan_id }}
+  register: vlan_check
+  failed_when: false
+  changed_when: false
+
+# If VLAN exists, check if it has the right ID
+- name: Check VLAN ID
+  shell: cat /proc/net/vlan/eth0.{{ vlan_id }} | grep "VID:" | grep -c "{{ vlan_id }}"
+  register: vlan_id_check
+  failed_when: false
+  changed_when: false
+  when: vlan_check.rc == 0
+
+# Remove VLAN if it exists but has wrong ID
+- name: Remove VLAN interface if ID mismatch
+  shell: ip link delete eth0.{{ vlan_id }}
+  when: 
+    - vlan_check.rc == 0
+    - vlan_id_check is defined
+    - vlan_id_check.stdout == "0"
+
+# Create netplan configuration for Ubuntu
+- name: Create netplan config with VLAN
+  template:
+    src: templates/netplan-config.yaml.j2
+    dest: /etc/netplan/01-netcfg.yaml
+    owner: root
+    group: root
+    mode: '0644'
+  register: netplan_config
+  when: ansible_distribution == 'Ubuntu'
+
+# Explicitly apply netplan for Ubuntu to ensure the interface is up immediately
+- name: Apply netplan configuration
+  command: netplan apply
+  when: 
+    - ansible_distribution == 'Ubuntu'
+    - netplan_config.changed
+
+# Verify VLAN interface is created for Ubuntu and create manually if needed
+- name: Verify VLAN interface is created (Ubuntu)
+  shell: ip link show eth0.{{ vlan_id }}
+  register: vlan_check_ubuntu
+  failed_when: false
+  changed_when: false
+  when: ansible_distribution == 'Ubuntu'
+
+# Create VLAN interface manually if not created by netplan
+- name: Create VLAN interface manually if needed (Ubuntu)
+  shell: |
+    modprobe 8021q
+    ip link add link eth0 name eth0.{{ vlan_id }} type vlan id {{ vlan_id }}
+    ip link set dev eth0.{{ vlan_id }} up
+  when: 
+    - ansible_distribution == 'Ubuntu'
+    - vlan_check_ubuntu.rc != 0
+
+# For non-Ubuntu distributions using ifupdown
+- name: Configure vlan interface in interfaces file
+  template:
+    src: templates/interfaces.j2
+    dest: /etc/network/interfaces
+    owner: root
+    group: root
+    mode: '0644'
+  register: interfaces_config
+  when: ansible_distribution != 'Ubuntu'
+
+# Restart networking for non-Ubuntu to ensure interface is up
+- name: Restart networking to apply interface changes
+  service:
+    name: networking
+    state: restarted
+  when: 
+    - ansible_distribution != 'Ubuntu'
+    - interfaces_config.changed
+
+# Verify VLAN interface is created for non-Ubuntu
+- name: Verify VLAN interface is created (non-Ubuntu)
+  shell: ip link show eth0.{{ vlan_id }}
+  register: vlan_check_non_ubuntu
+  failed_when: false
+  changed_when: false
+  when: ansible_distribution != 'Ubuntu'
+
+# Create VLAN interface manually if not created by restart
+- name: Create VLAN interface manually if needed (non-Ubuntu)
+  shell: |
+    modprobe 8021q
+    ip link add link eth0 name eth0.{{ vlan_id }} type vlan id {{ vlan_id }}
+    ip link set dev eth0.{{ vlan_id }} up
+  when: 
+    - ansible_distribution != 'Ubuntu'
+    - vlan_check_non_ubuntu is defined
+    - vlan_check_non_ubuntu.rc != 0
+
+# Create a shell script to recreate the VLAN interface on boot if needed
+- name: Create VLAN setup script
+  copy:
+    content: |
+      #!/bin/bash
+      # Script to ensure VLAN interface is properly configured
+      # To be run from rc.local or a systemd service
+      
+      # Load 8021q module
+      modprobe 8021q
+      
+      # Check if VLAN interface exists
+      if ! ip link show eth0.{{ vlan_id }} > /dev/null 2>&1; then
+        # Create VLAN interface
+        ip link add link eth0 name eth0.{{ vlan_id }} type vlan id {{ vlan_id }}
+        ip link set dev eth0.{{ vlan_id }} up
+        echo "Created VLAN interface eth0.{{ vlan_id }}"
+      else
+        echo "VLAN interface eth0.{{ vlan_id }} already exists"
+      fi
+    dest: /usr/local/bin/setup-vlan.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+# Add to rc.local to ensure it runs on boot
+- name: Ensure rc.local exists and is executable
+  copy:
+    content: |
+      #!/bin/bash
+      # rc.local script for startup tasks
+      
+      # Run VLAN setup script
+      /usr/local/bin/setup-vlan.sh
+      
+      exit 0
+    dest: /etc/rc.local
+    owner: root
+    group: root
+    mode: '0755'
+  when: ansible_distribution != 'Ubuntu'
+
+# For Ubuntu, create a systemd service
+- name: Create systemd service for VLAN setup
+  copy:
+    content: |
+      [Unit]
+      Description=Setup VLAN interfaces
+      After=network.target
+      
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/setup-vlan.sh
+      RemainAfterExit=yes
+      
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/setup-vlan.service
+    owner: root
+    group: root
+    mode: '0644'
+  when: ansible_distribution == 'Ubuntu'
+
+- name: Enable and start VLAN setup service
+  systemd:
+    name: setup-vlan.service
+    enabled: yes
+    state: started
+    daemon_reload: yes
+  when: ansible_distribution == 'Ubuntu'
+
+# Update HAProxy bindings to use VIP on VLAN
+- name: Update HAProxy bindings to use VIP
+  lineinfile:
+    path: /etc/haproxy/haproxy.cfg
+    regexp: '^\s*bind \*:{{ item }}'
+    line: '    bind {{ virtual_ip }}:{{ item }}'
+    backrefs: yes
+  with_items:
+    - '80'
+    - '443'
+    - '6443'
+  notify: Restart HAProxy

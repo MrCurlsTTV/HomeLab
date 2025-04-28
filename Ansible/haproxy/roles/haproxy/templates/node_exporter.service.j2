@@ -1,0 +1,22 @@
+[Unit]
+Description=Prometheus Node Exporter
+Documentation=https://github.com/prometheus/node_exporter
+After=network-online.target
+
+[Service]
+User=prometheus
+Group=prometheus
+Type=simple
+ExecStart=/usr/local/bin/node_exporter \
+  --web.listen-address=":{{ node_exporter_port }}" \
+  --collector.filesystem.ignored-mount-points="^/(dev|proc|sys|var/lib/docker/.+)($|/)" \
+  --collector.netdev \
+  --collector.meminfo \
+  --collector.cpu \
+  --collector.loadavg
+
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target 

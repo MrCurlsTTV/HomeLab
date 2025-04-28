@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Check if HAProxy is running using systemctl (with sudo)
+HAPROXY_RUNNING=$(sudo /bin/systemctl is-active haproxy 2>/dev/null || echo "inactive")
+
+# Check if HAProxy processes are running (doesn't require sudo)
+# This is a backup check in case systemctl is not accessible
+PID_CHECK=$(pgrep haproxy >/dev/null && echo "running" || echo "stopped")
+
+# Check if ports are listening (doesn't require sudo)
+HTTP_CHECK=$(netstat -ln | grep -q ':80 ' && echo "UP" || echo "DOWN")
+HTTPS_CHECK=$(netstat -ln | grep -q ':443 ' && echo "UP" || echo "DOWN")
+K8S_API_CHECK=$(netstat -ln | grep -q ':6443 ' && echo "UP" || echo "DOWN")
+
+# Log status to syslog
+logger -t keepalived_check "HAProxy status: systemctl=${HAPROXY_RUNNING} process=${PID_CHECK} http=${HTTP_CHECK} https=${HTTPS_CHECK} k8s_api=${K8S_API_CHECK}"
+
+# Return success if HAProxy is running (either by systemctl or process check)
+# and at least one of the ports is active
+if [ "$HAPROXY_RUNNING" == "active" -o "$PID_CHECK" == "running" ] && [ "$HTTP_CHECK" == "UP" -o "$HTTPS_CHECK" == "UP" -o "$K8S_API_CHECK" == "UP" ]; then
+    exit 0
+else
+    exit 1
+fi 

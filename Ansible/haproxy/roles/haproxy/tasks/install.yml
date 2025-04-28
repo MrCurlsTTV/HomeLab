@@ -1,0 +1,77 @@
+---
+- name: Install HAProxy prerequisites
+  package:
+    name:
+      - software-properties-common
+      - ca-certificates
+      - apt-transport-https
+    state: present
+  when: ansible_distribution == 'Ubuntu'
+
+- name: Add HAProxy repository (Ubuntu)
+  apt_repository:
+    repo: ppa:vbernat/haproxy-3.0
+    state: present
+  when: ansible_distribution == 'Ubuntu'
+
+- name: Add Certbot PPA repository
+  apt_repository:
+    repo: ppa:certbot/certbot
+    state: present
+  when: ansible_distribution == 'Ubuntu' and ansible_distribution_version is version('24.04', '<')
+
+- name: Install HAProxy and Certbot packages
+  package:
+    name:
+      - haproxy
+      - certbot
+      - python3-pip
+      - python3-venv
+      - python3-certbot-dns-cloudflare
+    state: present
+
+- name: Try to install python3-certbot-dns-cloudflare from apt (Ubuntu 24.04+)
+  apt:
+    name: python3-certbot-dns-cloudflare
+    state: present
+  when: ansible_distribution == 'Ubuntu' and ansible_distribution_version is version('24.04', '>=')
+  register: cloudflare_apt_install
+  ignore_errors: true
+
+- name: Set up Python virtual environment for Certbot plugins
+  command: python3 -m venv /opt/certbot-venv
+  args:
+    creates: /opt/certbot-venv
+  when: cloudflare_apt_install is defined and cloudflare_apt_install.failed or ansible_distribution_version is version('24.04', '<')
+
+- name: Install Certbot Cloudflare plugin in virtual environment
+  pip:
+    name: certbot-dns-cloudflare
+    state: present
+    virtualenv: /opt/certbot-venv
+  when: cloudflare_apt_install is defined and cloudflare_apt_install.failed or ansible_distribution_version is version('24.04', '<')
+
+- name: Create symlink to certbot in virtual environment
+  file:
+    src: /opt/certbot-venv/bin/certbot
+    dest: /usr/local/bin/certbot-venv
+    state: link
+  when: cloudflare_apt_install is defined and cloudflare_apt_install.failed or ansible_distribution_version is version('24.04', '<')
+
+- name: Enable and start HAProxy service
+  systemd:
+    name: haproxy
+    enabled: yes
+    state: started
+
+- name: Ensure HAProxy configuration directory exists
+  file:
+    path: /etc/haproxy
+    state: directory
+    mode: '0755'
+
+- name: Ensure SSL certificate directory exists
+  file:
+    path: /etc/letsencrypt
+    state: directory
+    mode: '0755' 

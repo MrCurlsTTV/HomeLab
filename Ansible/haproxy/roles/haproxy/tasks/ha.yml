@@ -1,0 +1,151 @@
+---
+- name: Install keepalived for high availability
+  package:
+    name: keepalived
+    state: present
+    update_cache: yes
+
+# Create keepalived_script user for script execution
+- name: Create keepalived_script user
+  user:
+    name: keepalived_script
+    system: yes
+    shell: /usr/sbin/nologin
+    home: /nonexistent
+    create_home: no
+    state: present
+
+# Add sudo privileges for keepalived_script user
+- name: Configure sudoers for keepalived_script user
+  copy:
+    content: |
+      # Allow keepalived_script user to check haproxy status without password
+      keepalived_script ALL=(ALL) NOPASSWD: /bin/systemctl is-active haproxy
+    dest: /etc/sudoers.d/keepalived_script
+    owner: root
+    group: root
+    mode: '0440'
+    validate: /usr/sbin/visudo -cf %s
+
+- name: Create keepalived configuration directory
+  file:
+    path: /etc/keepalived
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Configure keepalived for HAProxy
+  template:
+    src: templates/keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Keepalived
+
+# Don't explicitly update the interface to VLAN, as this is now set in the template
+# and could cause issues if configured twice
+- name: Ensure keepalived is using the correct interface
+  lineinfile:
+    path: /etc/keepalived/keepalived.conf
+    regexp: '^\s*interface\s+'
+    line: '  interface {{ keepalived_interface | default("eth0."+vlan_id|string) }}'
+    backrefs: yes
+  notify: Restart Keepalived
+
+# Create the check script directory if it doesn't exist
+- name: Create directory for check scripts
+  file:
+    path: /usr/local/bin
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Copy notification scripts
+  copy:
+    src: "{{ item }}"
+    dest: "/usr/local/bin/{{ item | basename }}"
+    owner: root
+    group: root
+    mode: '0755'
+  with_items:
+    - files/notify_master.sh
+    - files/notify_backup.sh
+    - files/notify_fault.sh
+
+# Enable non-local IP binding for HAProxy
+- name: Allow HAProxy to bind to non-local IPs
+  sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: '1'
+    state: present
+    sysctl_set: yes
+    reload: yes
+
+# Create HAProxy check script
+- name: Create HAProxy check script
+  template:
+    src: templates/check_haproxy.sh.j2
+    dest: /usr/local/bin/check_haproxy.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+# Create systemd overrides for more reliable operation
+- name: Create systemd override directory for HAProxy
+  file:
+    path: /etc/systemd/system/haproxy.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Configure systemd restart parameters for HAProxy
+  copy:
+    content: |
+      [Service]
+      Restart=always
+      RestartSec=3
+    dest: /etc/systemd/system/haproxy.service.d/override.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload Systemd
+
+# Create systemd override for Keepalived to ensure it starts after networking
+- name: Create systemd override directory for Keepalived
+  file:
+    path: /etc/systemd/system/keepalived.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Configure systemd parameters for Keepalived
+  copy:
+    content: |
+      [Unit]
+      After=network-online.target
+      Wants=network-online.target
+      
+      [Service]
+      Restart=on-failure
+      RestartSec=5
+    dest: /etc/systemd/system/keepalived.service.d/override.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload Systemd
+
+# Force restart of services to ensure proper configuration
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Restart and enable Keepalived service
+  systemd:
+    name: keepalived
+    state: restarted
+    enabled: yes 

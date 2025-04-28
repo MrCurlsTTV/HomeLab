@@ -1,0 +1,232 @@
+---
+# File: Ansible\roles\rke2\tasks\post_install.yml
+- name: Debug node information
+  debug:
+    msg: >
+      Node type: {{ rke2_role }}, 
+      Hostname: {{ ansible_hostname }}, 
+      Is first control plane: {{ is_first_control_plane | default(false) | bool }},
+      Inventory name: {{ inventory_hostname }}
+
+- name: Server node kubectl tasks
+  when: rke2_role == 'server'
+  block:
+    - name: Install Kubectl using snap
+      community.general.snap:
+        name: kubectl
+        classic: yes
+        state: present
+      register: kubectl_install
+      retries: 3
+      delay: 10
+      timeout: 45
+      failed_when: false
+
+    # Fallback to direct download if snap fails
+    - name: Install kubectl (fallback to direct download)
+      get_url:
+        url: "https://dl.k8s.io/release/{{ kubernetes_version }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+      when: kubectl_install is failed or kubectl_install.rc is defined and kubectl_install.rc != 0
+
+    - name: Create kubectl completion
+      shell: kubectl completion bash > /etc/bash_completion.d/kubectl
+      args:
+        creates: /etc/bash_completion.d/kubectl
+
+    - name: Set up kubeconfig for users
+      include_tasks: kube-config.yml
+      loop:
+        - { home: '/root', owner: 'root'}
+        - { home: '/home/ansible', owner: 'ansible'}
+      loop_control:
+        loop_var: kube_user
+
+- name: First control plane node tasks
+  when: rke2_role == 'server' and is_first_control_plane | default(false) | bool
+  block:
+    - name: Create required namespaces
+      kubernetes.core.k8s:
+        name: "{{ item }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+        kubeconfig: /etc/rancher/rke2/rke2.yaml
+      with_items:
+        - istio-system
+        - metallb-system
+        - argocd
+        - cattle-system
+        - keda
+        - cattle-monitoring-system
+        - cert-manager
+        - nfs-provisoners
+        - external-dns
+        - cattle-fleet-system
+      register: namespace_result
+      until: namespace_result is succeeded
+      retries: 5
+      delay: 10
+      
+    # Enhanced Helm Installation
+    - name: Download helm
+      get_url:
+        url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        dest: /tmp/get_helm.sh
+        mode: '700'
+      register: helm_download
+
+    - name: Check if Helm is already installed
+      ansible.builtin.command: helm version --short
+      register: helm_check
+      failed_when: false
+      changed_when: false
+
+    - name: Install Helm if not present
+      ansible.builtin.command: /tmp/get_helm.sh
+      when: helm_check.rc != 0
+      register: helm_install
+      retries: 3
+      delay: 10
+
+    - name: Remove Helm install script
+      ansible.builtin.file:
+        path: /tmp/get_helm.sh
+        state: absent
+
+    - name: Add required Helm repositories
+      kubernetes.core.helm_repository:
+        name: "{{ item.name }}"
+        repo_url: "{{ item.url }}"
+        state: present
+        kubeconfig: /etc/rancher/rke2/rke2.yaml
+      loop:
+        - { name: 'jetstack', url: 'https://charts.jetstack.io' }
+        - { name: 'rancher-stable', url: 'https://releases.rancher.com/server-charts/stable' }
+        - { name: 'kedacore', url: 'https://kedacore.github.io/charts' }
+        - { name: 'metallb', url: 'https://metallb.github.io/metallb' }
+        - { name: 'argo', url: 'https://argoproj.github.io/argo-helm' }
+        - { name: 'longhorn', url: 'https://charts.longhorn.io' }
+        - { name: 'bitnami', url: 'https://charts.bitnami.com/bitnami' }
+        - { name: 'istio', url: 'https://istio-release.storage.googleapis.com/charts' }
+        - { name: 'nfs-subdir-external-provisioner', url: 'https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner' }
+        - { name: 'external-dns', url: 'https://kubernetes-sigs.github.io/external-dns/'}
+        - { name: 'rancher-charts', url: 'https://charts.rancher.io'}
+      register: helm_repo_add
+
+    - name: Check if Helm config exists for root
+      ansible.builtin.stat:
+        path: /root/.config/helm
+      register: helm_config
+
+    - name: Remove existing non-empty helm directory if it exists
+      ansible.builtin.file:
+        path: "/home/ansible/.config/helm"
+        state: absent
+      when: helm_config.stat.exists
+
+    - name: Ensure destination directory exists for each user
+      ansible.builtin.file:
+        path: "/home/ansible/.config"
+        state: directory
+        owner: "ansible"
+        group: "ansible"
+        mode: '0777'
+      when: helm_config.stat.exists
+
+    - name: Symlink Helm config to user's home
+      ansible.builtin.file:
+        src: /root/.config/helm
+        dest: "/home/ansible/.config/helm"
+        state: link
+        force: yes
+      when: helm_config.stat.exists
+
+    - name: Find all files in the helm config directory
+      ansible.builtin.find:
+        paths: "/home/ansible/.config/helm"
+        recurse: yes
+      register: helm_files
+      become: true
+      when: helm_config.stat.exists
+
+    - name: Set correct permissions and ownership for files in the helm config directory
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        owner: "ansible"
+        group: "ansible"
+        mode: '0775'
+      with_items: "{{ helm_files.files }}"
+      become: true
+      when: helm_config.stat.exists and helm_files.files is defined
+
+    - name: Update all Helm repos
+      ansible.builtin.command: helm repo update
+      environment:
+        KUBECONFIG: /etc/rancher/rke2/rke2.yaml
+      register: helm_update
+
+    - name: Install ArgoCD CLI
+      get_url:
+        url: https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+        dest: /usr/local/bin/argocd
+        mode: '0755'
+
+    - name: Install ArgoCD using Helm
+      kubernetes.core.helm:
+        name: argocd
+        chart_ref: argo/argo-cd
+        release_namespace: argocd
+        create_namespace: false  # Namespace already created above
+        wait: true
+        kubeconfig: /etc/rancher/rke2/rke2.yaml
+      register: helm_result
+      until: helm_result is succeeded
+      retries: 3
+      delay: 10
+
+    - name: Wait for ArgoCD server to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: argocd-server
+        namespace: argocd
+        kubeconfig: /etc/rancher/rke2/rke2.yaml
+        wait: yes
+        wait_timeout: 300
+        wait_condition:
+          type: Available
+          status: "True"
+
+    - name: Get ArgoCD admin password
+      shell: sudo /var/lib/rancher/rke2/bin/kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" --kubeconfig /etc/rancher/rke2/rke2.yaml | base64 -d
+      register: argocd_password
+      changed_when: false
+
+    - name: Display ArgoCD admin password
+      debug:
+        msg: "ArgoCD Admin Password: {{ argocd_password.stdout }}"
+        
+    # Install NFS provisioners after NFS role has run
+    - name: Install NFS provisioners
+      kubernetes.core.helm:
+        name: "nfs-{{ item.name }}"
+        chart_ref: nfs-subdir-external-provisioner/nfs-subdir-external-provisioner
+        release_namespace: nfs-provisoners
+        values:
+          nfs:
+            server: "{{ nfs_server }}.{{ domain_name }}"
+            path: "{{ item.path }}"
+          storageClass:
+            name: "{{ item.Storage_class }}"
+            defaultClass: false
+            reclaimPolicy: Retain
+        state: present
+        kubeconfig: /etc/rancher/rke2/rke2.yaml
+      loop: "{{ nfs_provisioners }}"
+      when: nfs_role_completed | default(false) | bool
+      register: nfs_provisioner_install
+      retries: 5
+      delay: 10
+      until: nfs_provisioner_install is succeeded 

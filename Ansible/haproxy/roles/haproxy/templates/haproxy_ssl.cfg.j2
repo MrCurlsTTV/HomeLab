@@ -1,0 +1,121 @@
+global
+    log /dev/log local0
+    log /dev/log local1 notice
+    chroot /var/lib/haproxy
+    stats socket /run/haproxy/admin.sock mode 660 level admin expose-fd listeners
+    stats socket /var/lib/haproxy/stats mode 666 level admin expose-fd listeners
+    stats timeout 30s
+    user haproxy
+    group haproxy
+    daemon
+
+    # Default SSL material locations
+    ca-base /etc/ssl/certs
+    crt-base /etc/ssl/private
+
+    # SSL tuning
+    ssl-default-bind-ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+    ssl-default-bind-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+    ssl-default-bind-options no-sslv3 no-tlsv10 no-tlsv11 no-tls-tickets
+
+defaults
+    log     global
+    mode    http
+    option  httplog
+    option  dontlognull
+    timeout connect 5000
+    timeout client  50000
+    timeout server  50000
+    errorfile 400 /etc/haproxy/errors/400.http
+    errorfile 403 /etc/haproxy/errors/403.http
+    errorfile 408 /etc/haproxy/errors/408.http
+    errorfile 500 /etc/haproxy/errors/500.http
+    errorfile 502 /etc/haproxy/errors/502.http
+    errorfile 503 /etc/haproxy/errors/503.http
+    errorfile 504 /etc/haproxy/errors/504.http
+
+# Frontend for HTTP 
+frontend http_front
+    bind {{ virtual_ip }}:80
+    mode http
+    option httplog
+    
+    # Define ACL for stats
+    acl stats_acl path_beg {{ haproxy_stats_uri }}
+    
+    # HAProxy stats if accessed via HTTP
+    use_backend stats_backend if stats_acl
+    
+    # Redirect HTTP to HTTPS for normal traffic
+    redirect scheme https code 301 if !stats_acl
+
+# Frontend for HTTPS with SSL
+frontend https_front
+    # Bind with SSL certificate if available
+    bind {{ virtual_ip }}:443 ssl crt /etc/haproxy/certs/{{ domain_name }}.pem
+    mode http
+    
+    # Define ACL for stats
+    acl stats_acl path_beg {{ haproxy_stats_uri }}
+    
+    # HAProxy stats
+    use_backend stats_backend if stats_acl
+    
+    # Define ACL for Prometheus
+    acl prometheus_acl path {{ haproxy_exporter_metrics_uri }}
+    
+    # Prometheus metrics endpoint
+    use_backend prometheus_backend if prometheus_acl
+    
+    # Return a default page for other HTTPS requests
+    default_backend empty_backend
+
+# Frontend for Kubernetes API - TCP mode with SSL
+frontend k8s_api_front
+    # Standard TCP binding for Kubernetes API
+    bind {{ virtual_ip }}:6443
+    option tcplog
+    mode tcp
+    {% if groups['kubernetes'] is defined and groups['kubernetes']|length > 0 %}
+    default_backend k8s_api_backend
+    {% else %}
+    default_backend empty_tcp_backend
+    {% endif %}
+
+# Backend for HAProxy stats
+backend stats_backend
+    stats enable
+    stats uri {{ haproxy_stats_uri }}
+    stats refresh 10s
+    stats auth {{ haproxy_stats_user }}:{{ haproxy_stats_password }}
+    stats hide-version
+    stats show-legends
+    stats show-node
+
+# Backend for Prometheus metrics
+backend prometheus_backend
+    server prometheus 127.0.0.1:{{ haproxy_exporter_port }}
+
+# Empty backend for default HTTPS requests
+backend empty_backend
+    mode http
+    http-request return status 200 content-type "text/html" string "<html><body><h1>HAProxy Load Balancer</h1><p>This is the default page.</p></body></html>"
+
+{% if groups['kubernetes'] is defined and groups['kubernetes']|length > 0 %}
+# Backend for Kubernetes API (TCP mode for direct passthrough)
+backend k8s_api_backend
+    mode tcp
+    balance roundrobin
+    option tcp-check
+    # Use only control plane nodes for API server
+{% for host in groups['kubernetes'] if 'master' in host %}
+    server {{ host }} {{ hostvars[host]['ansible_host'] }}:6443 check
+{% endfor %}
+{% else %}
+# Empty TCP backend when no Kubernetes hosts are defined
+backend empty_tcp_backend
+    mode tcp
+    server localhost 127.0.0.1:6443 check
+{% endif %}
+
+# End of HAProxy configuration 

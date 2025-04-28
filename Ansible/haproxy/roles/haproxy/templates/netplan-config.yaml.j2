@@ -1,0 +1,23 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    eth0:
+      dhcp4: no
+      addresses: [{{ ansible_host }}/16]
+      routes:
+        - to: default
+          via: {{ default_gateway }}
+      nameservers:
+        addresses: [{{ dns_servers }}]
+      # Enable VLAN support on this interface
+      optional: true
+  vlans:
+    eth0.{{ vlan_id }}:
+      id: {{ vlan_id }}
+      link: eth0
+      dhcp4: no
+      dhcp6: no
+      accept-ra: no
+      # We don't manually assign the virtual IP here
+      # That's handled by keepalived 

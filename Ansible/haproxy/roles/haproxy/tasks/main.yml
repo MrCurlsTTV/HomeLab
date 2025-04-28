@@ -1,0 +1,27 @@
+---
+# First install everything needed
+- name: Include common tasks
+  import_tasks: common.yml
+
+- name: Include installation tasks
+  import_tasks: install.yml
+
+# Configure network with VLAN support
+- name: Include network configuration tasks
+  import_tasks: network.yml
+
+# Set up certificate directories and scripts first
+- name: Include certificate tasks
+  import_tasks: cert.yml
+
+# Now configure HAProxy with minimal configuration (without SSL)
+- name: Include configuration tasks
+  import_tasks: configure.yml
+  
+# Set up high availability
+- name: Include high availability tasks
+  import_tasks: ha.yml
+  
+# Configure monitoring
+- name: Include monitoring tasks
+  import_tasks: monitoring.yml

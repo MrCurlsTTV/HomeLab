@@ -5,18 +5,18 @@ locals {
             target_node = "dl360g0"
             clone       = "ubuntu-24.04-template"
             tags        = "k8s;master;ubuntu-24.04"
-            memory      = 8192
-            cores       = 2
+            memory      = 12288
+            cores       = 4
             disk_size   = "50G"
-            ipconfig0 = "ip=172.16.10.200/16,gw=172.16.0.1"
+            ipconfig0   = "ip=172.16.10.200/16,gw=172.16.0.1"
         }
         "201" = {
             name        = "k8s-master-1"
             target_node = "dl360g1"
             clone       = "ubuntu-24.04-template"
             tags        = "k8s;master;ubuntu-24.04"
-            memory      = 8192
-            cores       = 2
+            memory      = 12288
+            cores       = 4
             disk_size   = "50G"
             ipconfig0   = "ip=172.16.10.201/16,gw=172.16.0.1"
         }
@@ -25,7 +25,7 @@ locals {
             target_node = "dl360g2"
             clone       = "ubuntu-24.04-template"
             tags        = "k8s;master;ubuntu-24.04"
-            memory      = 8192
+            memory      = 12228
             cores       = 2
             disk_size   = "50G"
             ipconfig0   = "ip=172.16.10.202/16,gw=172.16.0.1"
@@ -121,6 +121,26 @@ locals {
             cores       = 4
             disk_size   = "80G"
             ipconfig0   = "ip=172.16.11.102/16,gw=172.16.0.1"
+        }
+        "1000" ={
+            name        = "HAProxy01"
+            target_node = "dl360g0"
+            clone       = "ubuntu-24.04-template"
+            tags        = "haproxy;primary;ubuntu-24.04"
+            memory      = 16384
+            cores       = 6
+            disk_size   = "20G"
+            ipconfig0   = "ip=172.16.255.0/16,gw=172.16.0.1"
+        }
+        "1001" ={
+            name        = "HAProxy02"
+            target_node = "dl360g2"
+            clone       = "ubuntu-24.04-template"
+            tags        = "haproxy;backup;ubuntu-24.04"
+            memory      = 16384
+            cores       = 6
+            disk_size   = "20G"
+            ipconfig0   = "ip=172.16.255.1/16,gw=172.16.0.1"
         }
         #"8010" = {
         #    name        = "Ubuntu-24-10"

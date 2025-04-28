@@ -1,0 +1,25 @@
+# Ansible vault files
+group_vars/vault/secrets.yml
+group_vars/vault/vault-password.txt
+group_vars/vault/vault_pass
+group_vars/all/vault.yml
+
+# Environment variables
+.env
+*.env
+env.sh
+
+# Ansible retry files
+*.retry
+
+# Ansible inventory
+**/inventory/**/*
+!**/inventory/**/*.example
+
+# Logs and other runtime files
+*.log
+*.tmp
+
+# OS generated files
+.DS_Store
+Thumbs.db 

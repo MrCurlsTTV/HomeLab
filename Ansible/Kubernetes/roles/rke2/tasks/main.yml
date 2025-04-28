@@ -1,124 +1,20 @@
-#roles/rke2/tasks/main.yml
-- name: Ensure RKE2 Directories exist
-  file:
-    path: /etc/rancher/rke2
-    state: directory
-    mode: '0755'
+---
+# File: Ansible\roles\rke2\tasks\main.yml
+- name: Include common tasks
+  include_tasks: common.yml
 
-- name: Update apt cache (Ubuntu only)
-  apt:
-    update_cache: yes
-  when: ansible_distribution == "Ubuntu"
+- name: Include server init tasks (first control plane)
+  include_tasks: server_init.yml
+  when: rke2_role == 'server' and (is_first_control_plane | default(false) | bool)
 
-- name: Disable Firewall
-  command: >
-    sudo ufw disable
-  register: disable_ufw
+- name: Include server join tasks (additional control planes)
+  include_tasks: server_join.yml
+  when: rke2_role == 'server' and not (is_first_control_plane | default(false) | bool)
 
-- name: Disable Swap
-  command: >
-    sudo swapoff -a
-  register: disable_swap
+- name: Include agent tasks
+  include_tasks: agent.yml
+  when: rke2_role == 'agent'
 
-- name: Comment out swap line in /etc/fstab
-  become: true
-  lineinfile:
-    path: /etc/fstab
-    regexp: '^([^#].*\s+swap\s+)'
-    line: '# \1'
-    backrefs: yes
-  when: disable_swap is changed
-  register: comment_swap_fstab
-
-- name: Create RKE2 server config.yml for First Server node
-  copy:
-    dest: /etc/rancher/rke2/config.yaml
-    content: |
-      tls-san:
-        - 127.0.0.1
-        - kube.mrcurls.org
-        - 172.16.10.200
-        - kube-api.mrcurls.org
-    mode: '0755'
-  when: ansible_hostname == 'k8s-master-0'
-
-- name: Download RKE2 Install Script for Nodes
-  get_url:
-    url: https://get.rke2.io
-    dest: /tmp/install.sh
-    mode: '0755'
-  register: download_script
-
-- name: Install RKE2 on Master node
-  command: >
-    sudo INSTALL_RKE2_TYPE="server" sh /tmp/install.sh
-  when: ansible_hostname == 'k8s-master-0'
-  register: install_rke2_master
-
-- name: Enable & Start RKE2 service
-  systemd:
-    name: rke2-server.service
-    enabled: true
-    state: started
-  when: ansible_hostname == 'k8s-master-0'
-
-- name: Read RKE2 Token
-  command: >
-    cat /var/lib/rancher/rke2/server/node-token
-  register: rke2_token
-  when: ansible_hostname == 'k8s-master-0'
-
-- name: Set RKE2 Token as a fact
-  set_fact:
-    shared_rke2_token: "{{ rke2_token.stdout }}"
-  when: ansible_hostname == 'k8s-master-0'
-  run_once: true
-
-- name: Set RKE2 base config for Agent and Remaining Master nodes
-  set_fact:
-    rke2_config_content: |
-      server: https://172.16.10.200:9345
-      token: {{ hostvars['k8s-master-0'].shared_rke2_token }}
-  when: ansible_hostname != 'k8s-master-0'
-
-- name: Append master-specific settings if host is a secondary master
-  set_fact:
-    rke2_config_content: |
-      {{ rke2_config_content }}
-      tls-san:
-        - kube.mrcurls.org
-        - 172.16.10.200
-        - kube-api.mrcurls.org
-  when: ansible_hostname.startswith('k8s-master-') and ansible_hostname != 'k8s-master-0'
-
-- name: Create RKE2 config.yml for Agent and Remaining Master nodes
-  copy:
-    dest: /etc/rancher/rke2/config.yaml
-    mode: '0755'
-    content: "{{ rke2_config_content }}"
-  when: ansible_hostname != 'k8s-master-0' and (ansible_hostname.startswith('k8s-master-') or ansible_hostname.startswith('k8s-worker-'))
-
-- name: Install RKE2 with parameters
-  command: >
-    sudo INSTALL_RKE2_TYPE="{{ 'server' if ansible_hostname.startswith('k8s-master-') else 'agent' }}" sh /tmp/install.sh
-  when: ansible_hostname in groups['k8smaster'] or ansible_hostname in groups['k8sworker'] != 'k8s-master-0'
-  register: set_parameters
-  retries: 4
-  delay: 10
-
-- name: Enable & Start RKE2 services
-  systemd:
-    name: "{{ 'rke2-server.service' if 'k8s-master-' in ansible_hostname else 'rke2-agent.service' }}"
-    enabled: true
-    state: started
-  when: ansible_hostname in groups['k8smaster'] or ansible_hostname in groups['k8sworker']
-  timeout: 45
-  retries: 2
-  delay: 20
-  ignore_errors: true
-
-- name: Install Kubernetes Python module via apt
-  apt:
-    name: python3-kubernetes
-    state: present
-  become: true
+- name: Include post-installation tasks
+  include_tasks: post_install.yml
+  when: rke2_role == 'server'

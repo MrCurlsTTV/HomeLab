@@ -1,50 +1,33 @@
-- name: Install NFS client
-  ansible.builtin.package:
-    name: "{{ 'nfs-common' if ansible_os_family == 'Debian' else 'nfs-utils' }}"
-    state: present
-  become: true
+---
+# File: Ansible\roles\nfs\tasks\main.yml
+- name: Wait for apt lock to be released
+  shell: while lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
+  changed_when: false
+  timeout: 300
+  when: ansible_os_family == 'Debian'
 
-- name: Ensure all NFS mount points exist
-  ansible.builtin.file:
+- name: Install NFS client packages
+  apt:
+    name:
+      - nfs-common
+      - nfs4-acl-tools
+    state: present
+    update_cache: yes
+  ignore_errors: yes
+
+- name: Create mount points
+  file:
     path: "{{ item.path }}"
     state: directory
-    mode: '0775'
-  loop: "{{ nfs_mounts }}"
-  become: true
+    mode: '0755'
+  with_items: "{{ nfs_mounts }}"
 
-- name: Mount all NFS shares and persist them in fstab
-  ansible.posix.mount:
+- name: Mount NFS shares
+  mount:
     path: "{{ item.path }}"
-    src: "{{nfs_server}}.{{ domain_name }}:{{ item.src }}"
-    fstype: nfs
-    opts: defaults
+    src: "{{ nfs_server }}:{{ item.src }}"
+    fstype: nfs4
+    opts: "{{ nfs_mount_options | default('rw,noatime,vers=4') }}"
     state: mounted
-  loop: "{{ nfs_mounts }}"
-  become: true
-
-- name: Check PVCs for Rancher Monitoring
-  kubernetes.core.k8s_info:
-    kind: PersistentVolumeClaim
-    namespace: cattle-monitoring-system
-  register: pvc_facts
-  when: ansible_hostname == 'k8s-master-0'
-  ignore_errors: true
-
-- name: Create PVC for Rancher Monitoring
-  kubernetes.core.k8s:
-    state: present
-    definition:
-      apiVersion: v1
-      kind: PersistentVolumeClaim
-      metadata:
-        name: rancher-monitoring-pvc
-        namespace: cattle-monitoring-system
-      spec:
-        accessModes:
-          - ReadWriteMany
-        resources:
-          requests:
-            storage: 100Gi
-        storageClassName: monitoring-data-nfs
-  when: ansible_hostname == 'k8s-master-0' and "'rancher-monitoring-pvc' not in pvc_facts.resources | map(attribute='metadata.name')"
-  register: pvc_creation_rancher
+  with_items: "{{ nfs_mounts }}"
+  notify: restart nfs-client 

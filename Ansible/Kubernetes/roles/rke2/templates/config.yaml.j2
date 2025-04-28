@@ -1,0 +1,21 @@
+---
+# Configuration for the first control plane node
+tls-san:
+{% if rke2_config['tls-san'] is defined %}
+{% for san in rke2_config['tls-san'] %}
+  - {{ san }}
+{% endfor %}
+{% else %}
+  - {{ ansible_host }}
+  - {{ inventory_hostname }}
+{% endif %}
+node-ip: {{ rke2_config.node_ip }}
+node-external-ip: {{ rke2_config.node_external_ip }}
+disable: {{ rke2_config.disable | to_json }}
+cni: {{ rke2_config.cni }}
+service-node-port-range: {{ rke2_config.service_node_port_range }}
+cluster-cidr: {{ rke2_config.cluster_cidr }}
+service-cidr: {{ rke2_config.service_cidr }}
+cluster-dns: {{ rke2_config.cluster_dns }}
+cluster-domain: {{ rke2_config.cluster_domain }}
+write-kubeconfig-mode: {{ rke2_config.write_kubeconfig_mode }} 

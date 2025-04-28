@@ -1,0 +1,50 @@
+---
+# File: Ansible\roles\rke2\tasks\agent.yml
+- name: Download RKE2 installation script
+  get_url:
+    url: https://get.rke2.io
+    dest: /tmp/rke2-install.sh
+    mode: '0755'
+
+- name: Install RKE2 agent
+  command: /tmp/rke2-install.sh
+  args:
+    creates: "{{ rke2_install_path }}/rke2"
+  environment:
+    INSTALL_RKE2_VERSION: "{{ rke2_version }}"
+    INSTALL_RKE2_TYPE: "agent"
+
+- name: Create RKE2 config directory
+  file:
+    path: "{{ rke2_config_path }}"
+    state: directory
+    mode: '0755'
+
+- name: Configure RKE2 agent
+  template:
+    src: agent-config.yaml.j2
+    dest: "{{ rke2_config_path }}/config.yaml"
+    mode: '0644'
+  notify: restart rke2-agent
+
+- name: Enable and start RKE2 agent service
+  systemd:
+    name: rke2-agent
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: Wait for RKE2 agent to be ready
+  wait_for:
+    path: /var/lib/rancher/rke2/agent/kubelet.kubeconfig
+    state: present
+    timeout: 300
+
+- name: Wait for RKE2 agent service to be active
+  shell: "systemctl status rke2-agent | grep 'Active:' | grep -q 'active (running)'"
+  register: rke2_agent_status
+  until: rke2_agent_status.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+  failed_when: false 

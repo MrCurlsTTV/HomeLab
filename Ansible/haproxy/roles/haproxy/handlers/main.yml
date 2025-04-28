@@ -1,0 +1,43 @@
+---
+# Handlers for HAProxy
+
+- name: Restart HAProxy
+  systemd:
+    name: haproxy
+    state: restarted
+
+- name: Reload HAProxy
+  systemd:
+    name: haproxy
+    state: reloaded
+
+- name: Restart Keepalived
+  systemd:
+    name: keepalived
+    state: restarted
+    daemon_reload: yes
+
+- name: Reload Systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Restart Telegraf
+  systemd:
+    name: telegraf
+    state: restarted
+
+- name: Restart Rsyslog
+  systemd:
+    name: rsyslog
+    state: restarted
+
+# Network-related handlers
+- name: Apply netplan config
+  command: netplan apply
+  when: ansible_distribution == 'Ubuntu'
+
+- name: Restart networking
+  service:
+    name: networking
+    state: restarted
+  when: ansible_distribution != 'Ubuntu' 

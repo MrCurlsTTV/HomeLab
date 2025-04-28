@@ -11,7 +11,7 @@ resource "proxmox_vm_qemu" "prod" {
     #Hardware
     cores       = lookup(each.value, "cores", 2)
     memory      = lookup(each.value, "memory", 2048)
-    scsihw      = lookup(each.value, "scsihw", "virtio-scsi-pci")
+    scsihw      = lookup(each.value, "scsihw", "virtio-scsi-single")
     cpu_type    = lookup(each.value, "cpu_type", "host")
 
     disks {
@@ -30,7 +30,7 @@ resource "proxmox_vm_qemu" "prod" {
                     storage         = lookup(each.value, "disk_storage", "local")
                     discard         = lookup(each.value, "disk_discard", true)
                     emulatessd      = lookup(each.value, "disk_emulatessd", false)
-                    iothread        = lookup(each.value, "disk_iothread", false)
+                    iothread        = lookup(each.value, "disk_iothread", true)
                     readonly        = lookup(each.value, "disk_readonly", false)
                     replicate       = lookup(each.value, "disk_replicate", false)
                 }
@@ -39,7 +39,7 @@ resource "proxmox_vm_qemu" "prod" {
     }
 
     network {
-        id      = 0
+        id      = lookup(each.value, "network_id", 0)
         model   = lookup(each.value, "network_model", "virtio")
         bridge  = lookup(each.value, "network_bridge", "vmbr0")
         tag     = lookup(each.value, "network_tag", 2)

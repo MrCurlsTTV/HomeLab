@@ -1,0 +1,105 @@
+---
+# Prometheus User and Group setup
+- name: Create Prometheus user
+  user:
+    name: prometheus
+    shell: /bin/false
+    home: /var/lib/prometheus
+    system: yes
+    state: present
+
+- name: Create Prometheus group
+  group:
+    name: prometheus
+    system: yes
+    state: present
+
+# Prometheus directory setup
+- name: Create prometheus exporters directory
+  file:
+    path: /opt/prometheus_exporters
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+# HAProxy Exporter setup
+- name: Download HAProxy Prometheus exporter
+  get_url:
+    url: "https://github.com/prometheus/haproxy_exporter/releases/download/v{{ haproxy_exporter_version }}/haproxy_exporter-{{ haproxy_exporter_version }}.linux-amd64.tar.gz"
+    dest: "/tmp/haproxy_exporter-{{ haproxy_exporter_version }}.linux-amd64.tar.gz"
+    mode: '0644'
+
+- name: Extract HAProxy Prometheus exporter
+  unarchive:
+    src: "/tmp/haproxy_exporter-{{ haproxy_exporter_version }}.linux-amd64.tar.gz"
+    dest: "/opt/prometheus_exporters"
+    remote_src: yes
+    creates: "/opt/prometheus_exporters/haproxy_exporter-{{ haproxy_exporter_version }}.linux-amd64/haproxy_exporter"
+
+- name: Create symbolic link for HAProxy exporter
+  file:
+    src: "/opt/prometheus_exporters/haproxy_exporter-{{ haproxy_exporter_version }}.linux-amd64/haproxy_exporter"
+    dest: "/usr/local/bin/haproxy_exporter"
+    state: link
+
+- name: Install HAProxy exporter service
+  template:
+    src: templates/haproxy_exporter.service.j2
+    dest: /etc/systemd/system/haproxy_exporter.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload Systemd
+
+- name: Enable and start HAProxy exporter service
+  systemd:
+    name: haproxy_exporter
+    enabled: yes
+    state: started
+
+# Node Exporter setup
+- name: Download Node Exporter
+  get_url:
+    url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+    dest: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+    mode: '0644'
+
+- name: Extract Node Exporter
+  unarchive:
+    src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+    dest: "/opt/prometheus_exporters"
+    remote_src: yes
+    creates: "/opt/prometheus_exporters/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+
+- name: Create symbolic link for Node Exporter
+  file:
+    src: "/opt/prometheus_exporters/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+    dest: "/usr/local/bin/node_exporter"
+    state: link
+
+- name: Install Node Exporter service
+  template:
+    src: templates/node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload Systemd
+
+- name: Enable and start Node Exporter service
+  systemd:
+    name: node_exporter
+    enabled: yes
+    state: started
+
+# Firewall configuration for exporters
+- name: Open firewall ports for Prometheus exporters
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  with_items:
+    - "{{ haproxy_exporter_port }}"
+    - "{{ node_exporter_port }}"
+  when: ansible_distribution == 'Ubuntu' 

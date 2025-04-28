@@ -1,0 +1,74 @@
+---
+# Waiting on APT locks to be released especially after it was just provisioned by terraform.
+- name: Wait for apt locks to be released
+  block:
+    - name: Check apt lock (dpkg frontend)
+      shell: lsof /var/lib/dpkg/lock-frontend
+      register: dpkg_lock_frontend
+      failed_when: dpkg_lock_frontend.rc > 1
+      changed_when: dpkg_lock_frontend.rc == 0
+
+    - name: Wait for dpkg frontend lock to be released
+      shell: while lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
+      when: dpkg_lock_frontend.rc == 0
+      changed_when: false
+
+    - name: Check apt lock (dpkg)
+      shell: lsof /var/lib/dpkg/lock
+      register: dpkg_lock
+      failed_when: dpkg_lock.rc > 1
+      changed_when: dpkg_lock.rc == 0
+
+    - name: Wait for dpkg lock to be released
+      shell: while lsof /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 5; done
+      when: dpkg_lock.rc == 0
+      changed_when: false
+
+    - name: Check apt lock (apt lists)
+      shell: lsof /var/lib/apt/lists/lock
+      register: apt_lists_lock
+      failed_when: apt_lists_lock.rc > 1
+      changed_when: apt_lists_lock.rc == 0
+
+    - name: Wait for apt lists lock to be released
+      shell: while lsof /var/lib/apt/lists/lock >/dev/null 2>&1; do sleep 5; done
+      when: apt_lists_lock.rc == 0
+      changed_when: false
+
+    - name: Check apt lock (archives)
+      shell: lsof /var/cache/apt/archives/lock
+      register: apt_archives_lock
+      failed_when: apt_archives_lock.rc > 1
+      changed_when: apt_archives_lock.rc == 0
+
+    - name: Wait for apt archives lock to be released
+      shell: while lsof /var/cache/apt/archives/lock >/dev/null 2>&1; do sleep 5; done
+      when: apt_archives_lock.rc == 0
+      changed_when: false
+  rescue:
+    - name: Install lsof if not present
+      raw: apt-get update && apt-get install -y lsof
+      changed_when: false
+      
+    - name: Retry lock check
+      include_tasks: common.yml
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+  when: ansible_distribution == 'Ubuntu'
+
+- name: Install common packages
+  package:
+    name:
+      - vim
+      - curl
+      - wget
+      - net-tools
+      - rsync
+      - tar
+    state: present
+
+- name: Set server timezone
+  timezone:
+    name: UTC 

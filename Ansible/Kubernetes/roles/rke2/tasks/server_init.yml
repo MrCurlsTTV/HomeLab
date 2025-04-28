@@ -1,0 +1,91 @@
+---
+# File: Ansible\roles\rke2\tasks\server_init.yml
+
+- name: Download RKE2 installation script
+  get_url:
+    url: https://get.rke2.io
+    dest: /tmp/rke2-install.sh
+    mode: '0755'
+
+- name: Install RKE2 server
+  command: /tmp/rke2-install.sh
+  args:
+    creates: "{{ rke2_install_path }}/rke2"
+  environment:
+    INSTALL_RKE2_VERSION: "{{ rke2_version }}"
+    INSTALL_RKE2_TYPE: "server"
+
+- name: Create RKE2 config directory
+  file:
+    path: "{{ rke2_config_path }}"
+    state: directory
+    mode: '0755'
+
+- name: Configure RKE2 server (init)
+  template:
+    src: config.yaml.j2
+    dest: "{{ rke2_config_path }}/config.yaml"
+    mode: '0644'
+  notify: restart rke2
+
+- name: Enable and start RKE2 service
+  systemd:
+    name: rke2-server
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: Wait for kubeconfig to be generated
+  wait_for:
+    path: /etc/rancher/rke2/rke2.yaml
+    state: present
+    timeout: 300
+
+- name: Wait for kubectl to be installed and symlinked
+  wait_for:
+    path: /var/lib/rancher/rke2/bin/kubectl
+    state: present
+    timeout: 300
+
+- name: Wait for RKE2 to be ready
+  shell: "systemctl status rke2-server | grep 'Active:' | grep -q 'active (running)'"
+  register: rke2_status
+  until: rke2_status.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+  failed_when: false
+
+- name: Check if RKE2 pods are running
+  shell: "sudo /var/lib/rancher/rke2/bin/kubectl --kubeconfig=/etc/rancher/rke2/rke2.yaml get pods -A"
+  register: kubectl_check
+  until: kubectl_check.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+  failed_when: false
+
+- name: Get RKE2 node token
+  slurp:
+    src: /var/lib/rancher/rke2/server/node-token
+  register: node_token
+
+- name: Store node token for other nodes
+  set_fact:
+    rke2_node_token: "{{ node_token['content'] | b64decode }}"
+
+- name: Share token with other hosts
+  set_fact:
+    rke2_node_token: "{{ rke2_node_token }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  with_items: 
+    - "{{ groups['rke2_servers'] }}"
+    - "{{ groups['rke2_agents'] }}"
+  when: 
+    - groups['rke2_servers'] is defined
+    - groups['rke2_agents'] is defined
+
+- name: Display control plane node token
+  debug:
+    msg: "RKE2 First Control Plane Node Token: {{ rke2_node_token }}" 

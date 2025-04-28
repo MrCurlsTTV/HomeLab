@@ -1,0 +1,113 @@
+---
+# File: Ansible\roles\rke2\tasks\common.yml
+- name: Wait for apt lock to be released
+  shell: while lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
+  changed_when: false
+  timeout: 300
+
+- name: Update apt cache and upgrade all packages
+  apt:
+    update_cache: yes
+    upgrade: dist
+    force_apt_get: yes
+
+- name: Install required packages
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - software-properties-common
+      - gnupg
+      - lsb-release
+      - python3-pip
+      - python3-setuptools
+    state: present
+
+- name: Install Kubernetes Python module via apt
+  apt:
+    name: python3-kubernetes
+    state: present
+  become: true
+
+- name: Disable swap
+  command: swapoff -a
+  changed_when: false
+
+- name: Comment out swap line in /etc/fstab
+  become: true
+  lineinfile:
+    path: /etc/fstab
+    regexp: '^([^#].*\s+swap\s+)'
+    line: '# \1'
+    backrefs: yes
+
+- name: Load required kernel modules
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - overlay
+    - br_netfilter
+  changed_when: false
+
+- name: Create modules-load.d directory
+  file:
+    path: /etc/modules-load.d
+    state: directory
+    mode: '0755'
+
+- name: Configure kernel modules to load at boot
+  copy:
+    dest: /etc/modules-load.d/rke2.conf
+    content: |
+      overlay
+      br_netfilter
+    mode: '0644'
+
+- name: Disable IPv6
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+  with_dict:
+    net.ipv6.conf.all.disable_ipv6: "1"
+    net.ipv6.conf.default.disable_ipv6: "1"
+    net.ipv6.conf.lo.disable_ipv6: "1"
+
+- name: Create sysctl.d directory
+  file:
+    path: /etc/sysctl.d
+    state: directory
+    mode: '0755'
+
+- name: Configure sysctl parameters at boot
+  copy:
+    dest: /etc/sysctl.d/99-kubernetes.conf
+    content: |
+      # IPv4 settings
+      net.bridge.bridge-nf-call-iptables = 1
+      net.ipv4.ip_forward = 1
+      net.ipv4.conf.all.forwarding = 1
+      
+      # Disable IPv6
+      net.ipv6.conf.all.disable_ipv6 = 1
+      net.ipv6.conf.default.disable_ipv6 = 1
+      net.ipv6.conf.lo.disable_ipv6 = 1
+    mode: '0644'
+
+- name: Disable IPv6 in network interfaces
+  blockinfile:
+    path: /etc/sysctl.conf
+    block: |
+      net.ipv6.conf.all.disable_ipv6 = 1
+      net.ipv6.conf.default.disable_ipv6 = 1
+      net.ipv6.conf.lo.disable_ipv6 = 1
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - IPv6 DISABLE"
+    create: yes
+
+- name: Flush ip6tables rules if ip6tables exists
+  shell: which ip6tables && ip6tables -F || echo "ip6tables not installed"
+  changed_when: false
+  failed_when: false 

@@ -1,0 +1,147 @@
+---
+# First set up the basic HAProxy configuration without SSL
+- name: Create HAProxy configuration
+  template:
+    src: templates/haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart HAProxy
+
+- name: Create HAProxy error pages directory
+  file:
+    path: /etc/haproxy/errors
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Copy HAProxy error pages
+  template:
+    src: "templates/{{ item }}.j2"
+    dest: "/etc/haproxy/errors/{{ item }}"
+    owner: root
+    group: root
+    mode: '0644'
+  with_items:
+    - 503.http
+    - 504.http
+  notify: Restart HAProxy
+
+- name: Configure certificate renewal cron job
+  cron:
+    name: "Renew Let's Encrypt certificates"
+    job: "/usr/local/bin/renew-certs.sh"
+    hour: "3"
+    minute: "30"
+    weekday: "1"
+
+- name: Configure sysctl for HAProxy
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: yes
+  with_items:
+    - { key: 'net.ipv4.ip_nonlocal_bind', value: '1' }
+    - { key: 'net.ipv4.ip_forward', value: '1' }
+    - { key: 'net.core.somaxconn', value: '65535' }
+
+# Ensure certs directory exists 
+- name: Create HAProxy certs directory
+  file:
+    path: /etc/haproxy/certs
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+# Start HAProxy to enable HTTP server for Let's Encrypt validation
+- name: Start HAProxy service
+  systemd:
+    name: haproxy
+    state: started
+    enabled: yes
+
+# Warn about DNS requirements before attempting Let's Encrypt
+- name: Display DNS setup instructions (pre-run)
+  debug:
+    msg: |
+      IMPORTANT: This playbook will attempt to obtain Let's Encrypt certificates
+      using DNS challenge. You will need to create TXT records for:
+      _acme-challenge.{{ domain_name }} {% if additional_domains is defined %}{% for domain in additional_domains %}
+      _acme-challenge.{{ domain }}{% endfor %}{% endif %}
+      
+      Please pre-create these records or be ready to create them quickly.
+      The automation will wait 60 seconds for propagation.
+
+# Fallback to self-signed certificates
+- name: Create self-signed certificate 
+  block:
+    - name: Generate self-signed certificate
+      command: >
+        openssl req -x509 -newkey rsa:4096 -nodes -keyout /etc/haproxy/certs/{{ domain_name }}.key 
+        -out /etc/haproxy/certs/{{ domain_name }}.crt -days 365 
+        -subj "/CN={{ domain_name }}/O=HAProxy/C=US"
+      args:
+        creates: "/etc/haproxy/certs/{{ domain_name }}.key"
+      
+    - name: Combine self-signed certificates
+      shell: >
+        cat /etc/haproxy/certs/{{ domain_name }}.crt /etc/haproxy/certs/{{ domain_name }}.key > 
+        /etc/haproxy/certs/{{ domain_name }}.pem
+      args:
+        creates: "/etc/haproxy/certs/{{ domain_name }}.pem"
+      
+    - name: Set appropriate permissions on certificate file
+      file:
+        path: "/etc/haproxy/certs/{{ domain_name }}.pem"
+        owner: root
+        group: root
+        mode: '0600'
+        
+    - name: Warn about using self-signed certificates
+      debug:
+        msg: "Using self-signed certificates for testing. These are not trusted by browsers."
+
+# Set certificate availability fact
+- name: Check if HAProxy certificate exists
+  stat:
+    path: "/etc/haproxy/certs/{{ domain_name }}.pem"
+  register: haproxy_cert_stat
+
+- name: Set certificate availability fact
+  set_fact:
+    ssl_cert_available: "{{ haproxy_cert_stat.stat.exists | default(false) }}"
+
+# Update HAProxy configuration with SSL
+- name: Update HAProxy configuration with SSL
+  template:
+    src: templates/haproxy_ssl.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: '0644'
+  when: haproxy_cert_stat.stat.exists
+  notify: Restart HAProxy
+
+# Ensure configuration has proper line endings
+- name: Ensure HAProxy configuration has proper line endings
+  lineinfile:
+    path: /etc/haproxy/haproxy.cfg
+    line: "# End of HAProxy configuration"
+    insertafter: EOF
+  notify: Restart HAProxy
+
+# Add task to check HAProxy configuration
+- name: Check HAProxy configuration for errors
+  shell: haproxy -c -f /etc/haproxy/haproxy.cfg
+  register: haproxy_check
+  changed_when: false
+  ignore_errors: true
+
+- name: Display HAProxy configuration errors (if any)
+  debug:
+    var: haproxy_check.stderr_lines
+  when: haproxy_check.rc != 0 

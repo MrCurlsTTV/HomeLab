@@ -1,0 +1,4 @@
+# It is recommended to use Ansible Vault to encrypt this file.
+# ansible-vault encrypt ansible/proxmox_auth/roles/configure_proxmox_auth/vars/main.yml
+# Then run the playbook with --ask-vault-pass
+terraform_prov_password: "YOUR_PASSWORD_HERE" 

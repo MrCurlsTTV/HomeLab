@@ -1,0 +1,90 @@
+---
+- name: Generate a random password for terraform-prov user
+  ansible.builtin.set_fact:
+    terraform_prov_password: "{{ lookup('password', '/dev/null length=15 chars=ascii_letters,digits') }}"
+  run_once: true
+
+- name: Store the generated password
+  ansible.builtin.copy:
+    content: "{{ terraform_prov_password }}"
+    dest: "{{ playbook_dir }}/fetched_keys/terraform_prov_password.txt"
+  delegate_to: localhost
+  run_once: true
+
+- name: Ensure .ssh directory exists
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Add public key to root's authorized_keys
+  ansible.builtin.authorized_key:
+    user: root
+    key: "{{ lookup('file', '{{ playbook_dir }}/../../.ssh/id_rsa.pub') }}"
+    state: present
+
+- name: Create ansible-admin user
+  ansible.builtin.user:
+    name: ansible-admin
+    shell: /bin/bash
+    create_home: yes
+    group: sudo
+
+- name: Set up authorized_keys for ansible-admin user
+  ansible.builtin.authorized_key:
+    user: ansible-admin
+    key: "{{ lookup('file', '{{ playbook_dir }}/../../.ssh/id_rsa.pub') }}"
+    state: present
+
+- name: Update Proxmox cluster certificates and keys
+  ansible.builtin.command: pvecm updatecerts --force
+  changed_when: false
+
+- name: Grant passwordless sudo to ansible-admin user
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    line: 'ansible-admin ALL=(ALL) NOPASSWD: ALL'
+    validate: 'visudo -cf %s'
+
+- name: Create Terraform provider role
+  ansible.builtin.command: >
+    pveum role add TerraformProv -privs "Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Pool.Allocate Sys.Audit Sys.Console Sys.Modify VM.Allocate VM.Audit VM.Clone VM.Config.CDROM VM.Config.Cloudinit VM.Config.CPU VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.Migrate VM.Monitor VM.PowerMgmt SDN.Use"
+  register: role_result
+  changed_when: "'added' in role_result.stdout"
+  failed_when: role_result.rc != 0 and 'already exists' not in role_result.stderr
+
+- name: Create terraform-prov user
+  ansible.builtin.command: "pveum user add terraform-prov@pve --password {{ terraform_prov_password }}"
+  register: user_add_result
+  changed_when: "'added' in user_add_result.stdout"
+  failed_when: user_add_result.rc != 0 and 'already exists' not in user_add_result.stderr
+  no_log: true
+
+- name: Set ACL for terraform-prov user
+  ansible.builtin.command: pveum aclmod / -user terraform-prov@pve -role TerraformProv
+  register: acl_mod_result
+  changed_when: "'modified' in acl_mod_result.stdout"
+  failed_when: acl_mod_result.rc != 0 and 'already exists' not in acl_mod_result.stderr
+
+- name: Create directory for fetched keys
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/fetched_keys"
+    state: directory
+  delegate_to: localhost
+  run_once: true
+
+- name: Fetch the private key from the first host
+  ansible.builtin.fetch:
+    src: /root/.ssh/id_rsa
+    dest: "{{ playbook_dir }}/fetched_keys/"
+    flat: yes
+  when: inventory_hostname == groups['proxmox'][0]
+
+- name: Fetch the public key from the first host
+  ansible.builtin.fetch:
+    src: /root/.ssh/id_rsa.pub
+    dest: "{{ playbook_dir }}/fetched_keys/"
+    flat: yes
+  when: inventory_hostname == groups['proxmox'][0] 

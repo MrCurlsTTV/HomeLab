@@ -1,0 +1,9 @@
+---
+- name: Configure Proxmox Auth
+  hosts: proxmox
+  become: yes
+  remote_user: root
+  roles:
+    - role: configure_proxmox_auth
+      vars_files:
+        - vars/main.yml 

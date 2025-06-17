@@ -71,7 +71,7 @@
     qm create {{ item.template_vm_id }} 
     --memory {{ memory_size }} 
     --net0 virtio,bridge={{ network_bridge }} 
-    --scsihw virtio-scsi-pci 
+    --scsihw virtio-scsi-single 
     --name {{ item.distro }}-{{ item.version }}-template
     -tags {{ item.distro | capitalize }},{{ item.name | capitalize }},Template
   register: qm_create_result

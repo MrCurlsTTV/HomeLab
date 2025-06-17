@@ -61,7 +61,7 @@ variable "pm_log_file" {
 variable "pm_timeout" {
     description = "Proxmox API timeout in seconds"
     type        = number
-    default     = 300
+    default     = 600
 }
 
 variable "pm_debug" {

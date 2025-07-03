@@ -18,7 +18,7 @@ resource "proxmox_vm_qemu" "prod" {
         ide{
             ide2{
                 cloudinit {
-                    storage = lookup(each.value, "cloudinit_storage", "configs")
+                    storage = lookup(each.value, "cloudinit_storage", "disconfig")
                 }
             }
         }
@@ -27,9 +27,9 @@ resource "proxmox_vm_qemu" "prod" {
                 disk {
                     size            = lookup(each.value, "disk_size", "100G")
                     cache           = lookup(each.value, "disk_cache", "writeback")
-                    storage         = lookup(each.value, "disk_storage", "Backups")
+                    storage         = lookup(each.value, "disk_storage", "vm-storage")
                     discard         = lookup(each.value, "disk_discard", true)
-                    emulatessd      = lookup(each.value, "disk_emulatessd", false)
+                    emulatessd      = lookup(each.value, "disk_emulatessd", true)
                     iothread        = lookup(each.value, "disk_iothread", false)
                     readonly        = lookup(each.value, "disk_readonly", false)
                     replicate       = lookup(each.value, "disk_replicate", false)
@@ -42,7 +42,6 @@ resource "proxmox_vm_qemu" "prod" {
         id      = lookup(each.value, "network_id", 0)
         model   = lookup(each.value, "network_model", "virtio")
         bridge  = lookup(each.value, "network_bridge", "vmbr0")
-        tag     = lookup(each.value, "network_tag", 2)
     }
 
     serial {

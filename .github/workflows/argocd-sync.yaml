@@ -1,0 +1,32 @@
+name: ArgoCD Sync
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'gitops/**'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+          rm argocd-linux-amd64
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login ${{ secrets.ARGOCD_SERVER }} --username admin --password ${{ secrets.ARGOCD_PASSWORD }} --insecure
+
+      - name: Sync applications
+        run: |
+          argocd app sync infrastructure
+          argocd app sync monitoring-stack
+          argocd app wait infrastructure --health --timeout 300
+          argocd app wait monitoring-stack --health --timeout 300

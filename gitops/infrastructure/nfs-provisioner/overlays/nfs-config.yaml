@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-client-provisioner
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: nfs-client-provisioner
+          env:
+            - name: NFS_SERVER
+              value: "nfs.yourdomain.com"  # Replace with your NFS server
+            - name: NFS_PATH
+              value: "/exports/kubernetes"  # Replace with your NFS path
+      volumes:
+        - name: nfs-client-root
+          nfs:
+            server: nfs.yourdomain.com  # Replace with your NFS server
+            path: /exports/kubernetes  # Replace with your NFS path 

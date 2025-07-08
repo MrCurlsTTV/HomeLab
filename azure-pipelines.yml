@@ -1,0 +1,85 @@
+trigger:
+  - none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  TF_VAR_pm_api_token_id: $(PROXMOX_API_TOKEN_ID)
+  TF_VAR_pm_api_token_secret: $(PROXMOX_API_TOKEN_SECRET)
+  ANSIBLE_HOST_KEY_CHECKING: "False"
+
+stages:
+- stage: Full_Rebuild
+  displayName: 'Full Homelab Infrastructure Rebuild'
+  jobs:
+  - job: TeardownAndDeploy
+    displayName: 'Destroy and Rebuild Infrastructure'
+    steps:
+    - checkout: self
+
+    - task: InstallSSHKey@0
+      inputs:
+        knownHostsEntry: ''
+        sshPublicKey: $(ANSIBLE_SSH_PUBLIC_KEY)
+        sshKeySecureFile: 'ansible_ssh_private_key'
+      displayName: 'Install Ansible SSH Key'
+
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: |
+          sudo apt-get update
+          sudo apt-get install -y ansible
+      displayName: 'Install Ansible'
+
+    - task: TerraformInstaller@0
+      inputs:
+        terraformVersion: 'latest'
+      displayName: 'Install Terraform'
+
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: 'terraform destroy -auto-approve'
+      displayName: 'Terraform Destroy'
+      workingDirectory: '$(Build.SourcesDirectory)/Terraform'
+      
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: 'ansible-playbook -i inventory/hosts.ini cloud_init_templates.yml --private-key $(sshKeySecureFile.secureFilePath)'
+      displayName: 'Ansible: Create VM Templates'
+      workingDirectory: '$(Build.SourcesDirectory)/Ansible/Template Creation'
+
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: |
+          terraform apply -auto-approve
+          terraform apply -auto-approve
+          terraform apply -auto-approve
+      displayName: 'Terraform Apply (3 times)'
+      workingDirectory: '$(Build.SourcesDirectory)/Terraform'
+
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: |
+          echo "Waiting for VMs to boot..."
+          sleep 120
+      displayName: 'Wait for VMs to Boot'
+
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: 'ansible-playbook -i inventory/hosts.ini site.yml --private-key $(sshKeySecureFile.secureFilePath)'
+      displayName: 'Ansible: Configure HAProxy'
+      workingDirectory: '$(Build.SourcesDirectory)/Ansible/haproxy'
+    
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: 'ansible-playbook -i inventory/hosts.ini site.yml --private-key $(sshKeySecureFile.secureFilePath)'
+      displayName: 'Ansible: Deploy Kubernetes'
+      workingDirectory: '$(Build.SourcesDirectory)/Ansible/Kubernetes' 

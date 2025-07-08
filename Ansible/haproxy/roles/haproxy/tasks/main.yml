@@ -25,3 +25,11 @@
 # Configure monitoring
 - name: Include monitoring tasks
   import_tasks: monitoring.yml
+
+- name: Include keepalived tasks
+  import_tasks: keepalived.yml
+
+- name: Install HAProxy
+  package:
+    name: haproxy
+    state: present

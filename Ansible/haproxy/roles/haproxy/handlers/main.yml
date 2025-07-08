@@ -2,7 +2,7 @@
 # Handlers for HAProxy
 
 - name: Restart HAProxy
-  systemd:
+  service:
     name: haproxy
     state: restarted
 
@@ -40,4 +40,10 @@
   service:
     name: networking
     state: restarted
-  when: ansible_distribution != 'Ubuntu' 
+  when: ansible_distribution != 'Ubuntu'
+
+- name: Restart HAProxy Ingress Controller
+  systemd:
+    name: haproxy-ingress
+    state: restarted
+    daemon_reload: yes 

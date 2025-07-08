@@ -40,6 +40,13 @@ frontend http_front
     mode http
     option httplog
     
+    # Define ACLs for Kubernetes services
+    acl host_grafana hdr(host) -i grafana.apps.mrcurls.org
+    acl host_argocd hdr(host) -i argocd.apps.mrcurls.org
+
+    # Route to Istio for Kubernetes services
+    use_backend istio_ingress_backend if host_grafana or host_argocd
+    
     # Define ACL for stats
     acl stats_acl path_beg {{ haproxy_stats_uri }}
     
@@ -98,6 +105,16 @@ backend prometheus_backend
 backend empty_backend
     mode http
     http-request return status 200 content-type "text/html" string "<html><body><h1>HAProxy Load Balancer</h1><p>This is the default page.</p></body></html>"
+
+# Backend for Istio Ingress
+backend istio_ingress_backend
+    mode http
+    balance roundrobin
+    option httpchk GET /healthz/ready HTTP/1.1
+    http-check expect status 200
+{% for host in groups['k8s_worker'] %}
+    server {{ host }} {{ hostvars[host]['ansible_host'] }}:30080 check
+{% endfor %}
 
 {% if groups['kubernetes'] is defined and groups['kubernetes']|length > 0 %}
 # Backend for Kubernetes API (TCP mode for direct passthrough)

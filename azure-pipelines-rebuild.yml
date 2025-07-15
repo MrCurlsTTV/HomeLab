@@ -2,12 +2,18 @@ trigger:
 - none
 
 pool:
+  name: 'Docker'
   vmImage: 'ubuntu-latest'
 
 variables:
   TF_VAR_pm_api_token_id: $(PROXMOX_API_TOKEN_ID)
   TF_VAR_pm_api_token_secret: $(PROXMOX_API_TOKEN_SECRET)
   ANSIBLE_HOST_KEY_CHECKING: "False"
+  TF_VAR_pm_api_url: "https://172.16.101.1:8006/api2/json"
+  TF_VAR_pm_tls_insecure: "true"
+  TF_VAR_pm_parallel: "6"
+  TF_VAR_pm_timeout: "600"
+  TF_VAR_nfs: "truenas.mrcurls.org"
 
 stages:
 - stage: Full_Rebuild
@@ -25,18 +31,20 @@ stages:
         sshPublicKey: $(ANSIBLE_SSH_PUBLIC_KEY)
         sshKeySecureFile: 'ansible_ssh_private_key'
 
+    - task: DownloadSecureFile@1
+      name: terraformSshKey
+      displayName: 'Download SSH Key for Terraform'
+      inputs:
+        secureFile: 'sshkey.txt'
+
     - task: Bash@3
-      displayName: 'Install Ansible'
+      displayName: 'Set Terraform SSH Key Variable from File'
       inputs:
         targetType: 'inline'
         script: |
-          sudo apt-get update
-          sudo apt-get install -y ansible
-
-    - task: TerraformInstaller@0
-      displayName: 'Install Terraform'
-      inputs:
-        terraformVersion: 'latest'
+          # The content of the file is read and set as a secret variable TF_VAR_ssh_key
+          # Terraform will automatically pick this up as a terraform variable named "ssh_key"
+          echo "##vso[task.setvariable variable=TF_VAR_ssh_key;issecret=true]$(cat $(terraformSshKey.secureFilePath))"
 
     - task: Bash@3
       displayName: 'Terraform Destroy'
@@ -75,7 +83,16 @@ stages:
       inputs:
         targetType: 'inline'
         workingDirectory: '$(Build.SourcesDirectory)/Ansible/haproxy'
-        script: 'ansible-playbook -i inventory/hosts.ini site.yml --private-key $(ansible_ssh_private_key.secureFilePath)'
+        script: |
+          ansible-playbook -i inventory/hosts.ini site.yml --private-key $(ansible_ssh_private_key.secureFilePath) --extra-vars '{
+            "vault_cloudflare_email": "$(VAULT_CLOUDFLARE_EMAIL)",
+            "vault_cloudflare_api_token": "$(VAULT_CLOUDFLARE_API_TOKEN)",
+            "vault_cloudflare_api_key": "$(VAULT_CLOUDFLARE_API_KEY)",
+            "vault_cloudflare_zone_id": "$(VAULT_CLOUDFLARE_ZONE_ID)",
+            "vault_keepalived_auth_pass": "$(VAULT_KEEPALIVED_AUTH_PASS)",
+            "vault_letsencrypt_email": "$(VAULT_LETSENCRYPT_EMAIL)",
+            "vault_haproxy_stats_password": "$(VAULT_HAPROXY_STATS_PASSWORD)"
+          }'
     
     - task: Bash@3
       displayName: 'Ansible: Deploy Kubernetes'

@@ -33,7 +33,7 @@ stages:
 
     - task: DownloadSecureFile@1
       name: terraformSshKey
-      displayName: 'Download SSH Key for Terraform'
+      displayName: 'Download SH Key for Terraform'
       inputs:
         secureFile: 'sshkey.txt'
 

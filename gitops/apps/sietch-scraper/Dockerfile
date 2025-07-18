@@ -1,30 +1,26 @@
-FROM python:3.12-slim
+# Use a specific version of python as a base image
+FROM python:3.9-slim
 
-# Install Chrome and ChromeDriver dependencies
-RUN apt-get update && apt-get install -y \
+# Set the working directory in the container
+WORKDIR /app
+
+# Install system dependencies required for Chromium and Selenium
+RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     chromium-driver \
     && rm -rf /var/lib/apt/lists/*
 
-# Set environment variables for Chrome
-ENV CHROME_BIN=/usr/bin/chromium
-ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
-
-# Set working directory
-WORKDIR /app
-
-# Copy requirements first to leverage Docker cache
+# Copy the requirements file into the container
 COPY requirements.txt .
 
-# Install Python dependencies
+# Install the Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY src/scraper.py .
+# Copy the application source code
+COPY ./src .
 
-# Create a non-root user
-RUN useradd -m scraper
-USER scraper
+# Expose the port the app runs on
+EXPOSE 5000
 
-# Run the scraper
-CMD ["python", "scraper.py"] 
+# Command to run the application
+CMD ["python", "-u", "scraper.py"] 

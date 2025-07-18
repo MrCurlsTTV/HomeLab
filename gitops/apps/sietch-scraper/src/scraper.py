@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import psycopg2
 from datetime import datetime
 from dotenv import load_dotenv
+from flask import Flask, jsonify
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -24,6 +25,8 @@ DB_PORT = os.getenv('DB_PORT', '5432')
 
 # URL to scrape
 URL = "https://dune.gaming.tools/server-status"
+
+app = Flask(__name__)
 
 def get_chrome_driver():
     """Set up and return a Chrome WebDriver instance."""
@@ -127,60 +130,61 @@ def scrape_data():
             print(f"Error executing JavaScript: {e}")
             html_content = page_source
         
+        # --- DEBUG: Save the HTML to a file ---
+        try:
+            with open("/app/debug.html", "w", encoding="utf-8") as f:
+                f.write(html_content)
+            print("Successfully saved HTML to /app/debug.html")
+        except Exception as e:
+            print(f"Error saving debug HTML file: {e}")
+        # --- END DEBUG ---
+
         soup = BeautifulSoup(html_content, 'html.parser')
         
         servers_data = []
         
-        # Find server containers (divs with border class)
-        server_containers = soup.find_all('div', class_=lambda x: x and 'border' in x and 'border-slate-700' in x)
-        print(f"\nFound {len(server_containers)} server containers")
+        # Find all server headers using the corrected, more specific selector.
+        server_headers = soup.select('div.border-slate-700.flex.justify-between')
+        print(f"\nFound {len(server_headers)} server headers.")
         
-        if server_containers:
-            print("\nProcessing server containers")
-            for container in server_containers:
+        if server_headers:
+            print("\nProcessing server headers...")
+            for header in server_headers:
                 try:
-                    # Find server name and region
-                    header_div = container.find('div', class_=lambda x: x and 'flex' in x and 'justify-between' in x)
-                    if not header_div:
-                        continue
-                    
-                    server_name_elem = header_div.find('div', class_='text-2xl')
-                    region_elem = header_div.find('div', class_='text-xl')
+                    # Extract server name and region from within the header
+                    server_name_elem = header.select_one('div.text-2xl')
+                    region_elem = header.select_one('div.text-xl')
                     
                     if not server_name_elem or not region_elem:
+                        print("Could not find server name or region in a header, skipping.")
                         continue
                     
                     server_name = server_name_elem.text.strip()
                     region = region_elem.text.strip()
                     print(f"\nProcessing server: {server_name} ({region})")
                     
-                    # Find the associated table
-                    table = container.find_next_sibling('table', class_='datatable')
+                    # The data table is the next sibling of the header element
+                    table = header.find_next_sibling('table', class_='datatable')
                     if not table:
-                        print(f"No table found for server {server_name}")
+                        print(f"No data table found for server {server_name}")
                         continue
                     
                     sietches = []
                     # Process each row in the table body
-                    tbody = table.find('tbody')
-                    if not tbody:
-                        print(f"No tbody found for server {server_name}")
-                        continue
-                    
-                    rows = tbody.find_all('tr')
+                    rows = table.select('tbody tr')
                     
                     for row in rows:
                         cols = row.find_all('td')
                         if len(cols) >= 2:
                             sietch_name = cols[0].text.strip()
-                            if sietch_name == 'Total':  # Skip the total row
+                            if sietch_name.lower() == 'total':  # Skip the summary row
                                 continue
                             
                             player_count_text = cols[1].text.strip()
                             
                             try:
-                                current_players = int(player_count_text.split('/')[0].strip())
-                                max_players = int(player_count_text.split('/')[1].strip())
+                                # Use map for a cleaner split/conversion
+                                current_players, max_players = map(int, player_count_text.split('/'))
                                 
                                 sietches.append({
                                     'name': sietch_name,
@@ -189,10 +193,10 @@ def scrape_data():
                                 })
                                 print(f"  Found sietch: {sietch_name} - {current_players}/{max_players}")
                             except (ValueError, IndexError) as e:
-                                print(f"  Error parsing player count for {sietch_name}: {e}")
+                                print(f"  Error parsing player count for {sietch_name}: {player_count_text} ({e})")
                                 continue
                     
-                    if sietches:  # Only add server if we found valid sietches
+                    if sietches:
                         servers_data.append({
                             'name': server_name,
                             'region': region,
@@ -200,7 +204,7 @@ def scrape_data():
                         })
                     
                 except Exception as e:
-                    print(f"Error processing server section: {e}")
+                    print(f"An unexpected error occurred while processing a server section: {e}")
                     continue
         
         if not servers_data:
@@ -259,22 +263,24 @@ def store_data(data):
     cur.close()
     conn.close()
 
+@app.route('/scrape', methods=['GET'])
+def scrape_endpoint():
+    """Scrape data, store it, and return it."""
+    print(f"\nScraping data at {datetime.now()}")
+    data = scrape_data()
+    if data:
+        store_data(data)
+        print("Data successfully stored in database")
+        return jsonify(data), 200
+    else:
+        print("Failed to scrape data")
+        return jsonify({"status": "error", "message": "Failed to scrape data."}), 500
+
 def main():
-    """Main function to run the scraper."""
+    """Main function to run the scraper as a web server."""
     print("Creating database tables...")
     create_tables()
-    
-    while True:
-        print(f"\nScraping data at {datetime.now()}")
-        data = scrape_data()
-        if data:
-            store_data(data)
-            print("Data successfully stored in database")
-        else:
-            print("Failed to scrape data")
-        
-        # Wait for 5 minutes before next scrape
-        time.sleep(300)
+    app.run(host='0.0.0.0', port=5000)
 
 if __name__ == "__main__":
     main() 

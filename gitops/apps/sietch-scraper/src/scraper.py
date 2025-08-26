@@ -2,7 +2,7 @@ import os
 import time
 from bs4 import BeautifulSoup
 import psycopg2
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 from selenium import webdriver
@@ -74,7 +74,7 @@ def create_tables():
             id SERIAL PRIMARY KEY,
             name VARCHAR(50) NOT NULL,
             region VARCHAR(50) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(name)
         )
     """)
@@ -87,7 +87,7 @@ def create_tables():
             name VARCHAR(50) NOT NULL,
             player_count INTEGER,
             max_players INTEGER,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(server_id, name, timestamp)
         )
     """)
@@ -236,7 +236,7 @@ def store_data(data):
     )
     cur = conn.cursor()
     
-    timestamp = datetime.now()
+    timestamp = datetime.now(timezone.utc)
     
     for server in data:
         # Insert or get server

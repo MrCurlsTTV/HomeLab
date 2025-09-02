@@ -1,0 +1,48 @@
+# ArgoCD installation with custom configuration for GitOps
+apiVersion: argoproj.io/v1alpha1
+kind: ArgoCD
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  server:
+    route:
+      enabled: false
+    ingress:
+      enabled: false
+    service:
+      type: ClusterIP
+  dex:
+    openShiftOAuth: false
+  rbac:
+    defaultPolicy: 'role:readonly'
+    policy: |
+      p, role:admin, applications, *, */*, allow
+      p, role:admin, certificates, *, *, allow
+      p, role:admin, clusters, *, *, allow
+      p, role:admin, repositories, *, *, allow
+      g, argocd-admins, role:admin
+  repo:
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  controller:
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  redis:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi

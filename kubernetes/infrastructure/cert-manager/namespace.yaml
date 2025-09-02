@@ -1,0 +1,8 @@
+# Cert-manager namespace for SSL certificate automation
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+  labels:
+    name: cert-manager
+    istio-injection: enabled

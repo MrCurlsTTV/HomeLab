@@ -1,0 +1,224 @@
+# Authentik SSO deployment for centralized authentication
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: auth
+  labels:
+    name: auth
+    istio-injection: enabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authentik-server
+  namespace: auth
+  labels:
+    app: authentik-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authentik-server
+  template:
+    metadata:
+      labels:
+        app: authentik-server
+    spec:
+      containers:
+      - name: authentik-server
+        image: ghcr.io/goauthentik/server:2024.1.1
+        args: ["server"]
+        ports:
+        - containerPort: 9000
+        - containerPort: 9443
+        env:
+        - name: AUTHENTIK_REDIS__HOST
+          value: "redis.database.svc.cluster.local"
+        - name: AUTHENTIK_POSTGRESQL__HOST
+          value: "postgresql.database.svc.cluster.local"
+        - name: AUTHENTIK_POSTGRESQL__USER
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: db_user
+        - name: AUTHENTIK_POSTGRESQL__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: db_password
+        - name: AUTHENTIK_POSTGRESQL__NAME
+          value: "authentik"
+        - name: AUTHENTIK_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: secret_key
+        - name: AUTHENTIK_EMAIL__HOST
+          value: "smtp.gmail.com"
+        - name: AUTHENTIK_EMAIL__PORT
+          value: "587"
+        - name: AUTHENTIK_EMAIL__USE_TLS
+          value: "true"
+        - name: AUTHENTIK_EMAIL__FROM
+          value: "mrcurls@mrcurls.org"
+        volumeMounts:
+        - name: media
+          mountPath: /media
+        - name: templates
+          mountPath: /templates
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+      volumes:
+      - name: media
+        persistentVolumeClaim:
+          claimName: authentik-media
+      - name: templates
+        persistentVolumeClaim:
+          claimName: authentik-templates
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authentik-worker
+  namespace: auth
+  labels:
+    app: authentik-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authentik-worker
+  template:
+    metadata:
+      labels:
+        app: authentik-worker
+    spec:
+      containers:
+      - name: authentik-worker
+        image: ghcr.io/goauthentik/server:2024.1.1
+        args: ["worker"]
+        env:
+        - name: AUTHENTIK_REDIS__HOST
+          value: "redis.database.svc.cluster.local"
+        - name: AUTHENTIK_POSTGRESQL__HOST
+          value: "postgresql.database.svc.cluster.local"
+        - name: AUTHENTIK_POSTGRESQL__USER
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: db_user
+        - name: AUTHENTIK_POSTGRESQL__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: db_password
+        - name: AUTHENTIK_POSTGRESQL__NAME
+          value: "authentik"
+        - name: AUTHENTIK_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: secret_key
+        volumeMounts:
+        - name: media
+          mountPath: /media
+        - name: templates
+          mountPath: /templates
+        - name: certs
+          mountPath: /certs
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 250m
+            memory: 256Mi
+      volumes:
+      - name: media
+        persistentVolumeClaim:
+          claimName: authentik-media
+      - name: templates
+        persistentVolumeClaim:
+          claimName: authentik-templates
+      - name: certs
+        persistentVolumeClaim:
+          claimName: authentik-certs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authentik
+  namespace: auth
+  labels:
+    app: authentik
+spec:
+  selector:
+    app: authentik-server
+  ports:
+  - name: http
+    port: 9000
+    targetPort: 9000
+  - name: https
+    port: 9443
+    targetPort: 9443
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: authentik-media
+  namespace: auth
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: flash-configs-nfs
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: authentik-templates
+  namespace: auth
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: flash-configs-nfs
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: authentik-certs
+  namespace: auth
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: flash-configs-nfs
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: authentik-vs
+  namespace: auth
+spec:
+  hosts:
+  - auth.mrcurls.net
+  gateways:
+  - istio-system/main-gateway
+  http:
+  - route:
+    - destination:
+        host: authentik
+        port:
+          number: 9000

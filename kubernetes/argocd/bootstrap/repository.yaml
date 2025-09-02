@@ -1,0 +1,17 @@
+# Git repository configuration for ArgoCD GitOps workflow
+apiVersion: v1
+kind: Secret
+metadata:
+  name: homelab
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: git
+  url: https://github.com/MrCurlsTTV/homelab.git
+  # For private repos, add SSH key or token
+  # sshPrivateKey: |
+  #   -----BEGIN OPENSSH PRIVATE KEY-----
+  #   your-ssh-private-key-here
+  #   -----END OPENSSH PRIVATE KEY-----

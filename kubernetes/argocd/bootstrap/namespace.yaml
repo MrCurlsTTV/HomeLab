@@ -1,0 +1,8 @@
+# ArgoCD namespace creation for GitOps deployment
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    name: argocd
+    istio-injection: enabled

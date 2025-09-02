@@ -1,0 +1,78 @@
+# NFS CSI driver installation for dynamic provisioning
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nfs-csi-provisioner
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nfs-external-provisioner-runner
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "update", "patch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["csinodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: run-nfs-csi-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: nfs-csi-provisioner
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: nfs-external-provisioner-runner
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-csi-provisioner
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nfs-csi-provisioner
+  template:
+    metadata:
+      labels:
+        app: nfs-csi-provisioner
+    spec:
+      serviceAccount: nfs-csi-provisioner
+      containers:
+        - name: nfs-provisioner
+          image: k8s.gcr.io/sig-storage/nfs-subdir-external-provisioner:v4.0.2
+          volumeMounts:
+            - name: nfs-client-root
+              mountPath: /persistentvolumes
+          env:
+            - name: PROVISIONER_NAME
+              value: nfs.csi.k8s.io
+            - name: NFS_SERVER
+              value: 192.168.103.114
+            - name: NFS_PATH
+              value: /mnt/Vault/Data
+      volumes:
+        - name: nfs-client-root
+          nfs:
+            server: 192.168.103.114
+            path: /mnt/Vault/Data

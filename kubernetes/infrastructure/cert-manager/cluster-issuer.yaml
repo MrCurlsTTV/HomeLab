@@ -17,8 +17,8 @@ spec:
             key: api-token
       selector:
         dnsNames:
-        - '*.mrcurls.net'
-        - 'mrcurls.net'
+        - '*.mrcurls.org'
+        - 'mrcurls.org'
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -31,5 +31,5 @@ spec:
     name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
-  - '*.mrcurls.net'
-  - 'mrcurls.net'
+  - '*.mrcurls.org'
+  - 'mrcurls.org'

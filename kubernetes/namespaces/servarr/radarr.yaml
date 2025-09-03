@@ -88,7 +88,7 @@ metadata:
   namespace: servarr
 spec:
   hosts:
-  - radarr.mrcurls.net
+  - radarr.mrcurls.org
   gateways:
   - istio-system/main-gateway
   http:

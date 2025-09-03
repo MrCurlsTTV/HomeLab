@@ -42,11 +42,11 @@ spec:
               name: grafana-secret
               key: oauth_client_secret
         - name: GF_AUTH_GENERIC_OAUTH_AUTH_URL
-          value: "https://auth.mrcurls.net/application/o/authorize/"
+          value: "https://auth.mrcurls.org/application/o/authorize/"
         - name: GF_AUTH_GENERIC_OAUTH_TOKEN_URL
-          value: "https://auth.mrcurls.net/application/o/token/"
+          value: "https://auth.mrcurls.org/application/o/token/"
         - name: GF_AUTH_GENERIC_OAUTH_API_URL
-          value: "https://auth.mrcurls.net/application/o/userinfo/"
+          value: "https://auth.mrcurls.org/application/o/userinfo/"
         volumeMounts:
         - name: data
           mountPath: /data/grafana
@@ -132,7 +132,7 @@ metadata:
   namespace: monitoring
 spec:
   hosts:
-  - grafana.mrcurls.net
+  - grafana.mrcurls.org
   gateways:
   - istio-system/main-gateway
   http:

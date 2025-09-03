@@ -78,7 +78,7 @@ metadata:
   namespace: servarr
 spec:
   hosts:
-  - overseerr.mrcurls.net
+  - overseerr.mrcurls.org
   gateways:
   - istio-system/main-gateway
   http:

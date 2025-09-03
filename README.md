@@ -34,7 +34,7 @@ This project provides a comprehensive Kubernetes infrastructure running on three
 
 ### Network Configuration
 
-- **Domain**: mrcurls.net
+- **Domain**: mrcurls.org
 - **NFS Server**: 192.168.103.114
 - **Storage Arrays**:
   - Vault: 2 vdevs of 4x16TB drives with special flash cache
@@ -61,14 +61,14 @@ This project provides a comprehensive Kubernetes infrastructure running on three
 
 After successful deployment, services will be available at:
 
-- **ArgoCD**: https://argocd.mrcurls.net
-- **Authentik**: https://auth.mrcurls.net
-- **Radarr**: https://radarr.mrcurls.net
-- **Sonarr**: https://sonarr.mrcurls.net
-- **Overseerr**: https://overseerr.mrcurls.net
-- **Qbittorrent**: https://qbittorrent.mrcurls.net
-- **Grafana**: https://grafana.mrcurls.net
-- **Prometheus**: https://prometheus.mrcurls.net
+- **ArgoCD**: https://argocd.mrcurls.org
+- **Authentik**: https://auth.mrcurls.org
+- **Radarr**: https://radarr.mrcurls.org
+- **Sonarr**: https://sonarr.mrcurls.org
+- **Overseerr**: https://overseerr.mrcurls.org
+- **Qbittorrent**: https://qbittorrent.mrcurls.org
+- **Grafana**: https://grafana.mrcurls.org
+- **Prometheus**: https://prometheus.mrcurls.org
 
 ## Storage Classes
 

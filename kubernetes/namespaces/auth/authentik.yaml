@@ -213,7 +213,7 @@ metadata:
   namespace: auth
 spec:
   hosts:
-  - auth.mrcurls.net
+  - auth.mrcurls.org
   gateways:
   - istio-system/main-gateway
   http:

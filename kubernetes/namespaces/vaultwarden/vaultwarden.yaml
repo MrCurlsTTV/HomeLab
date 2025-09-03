@@ -38,7 +38,7 @@ spec:
               name: vaultwarden-secret
               key: admin_token
         - name: DOMAIN
-          value: "https://vault.mrcurls.net"
+          value: "https://vault.mrcurls.org"
         - name: SIGNUPS_ALLOWED
           value: "false"
         - name: INVITATIONS_ALLOWED
@@ -135,7 +135,7 @@ metadata:
   namespace: vaultwarden
 spec:
   hosts:
-  - vault.mrcurls.net
+  - vault.mrcurls.org
   gateways:
   - istio-system/main-gateway
   http:

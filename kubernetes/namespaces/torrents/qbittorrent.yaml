@@ -122,7 +122,7 @@ metadata:
   namespace: torrents
 spec:
   hosts:
-  - qbittorrent.mrcurls.net
+  - qbittorrent.mrcurls.org
   gateways:
   - istio-system/main-gateway
   http:

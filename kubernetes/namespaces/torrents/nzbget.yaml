@@ -99,7 +99,7 @@ metadata:
   namespace: torrents
 spec:
   hosts:
-  - nzbget.mrcurls.net
+  - nzbget.mrcurls.org
   gateways:
   - istio-system/main-gateway
   http:

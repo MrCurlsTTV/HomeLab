@@ -78,7 +78,7 @@ metadata:
   namespace: servarr
 spec:
   hosts:
-  - prowlarr.mrcurls.net
+  - prowlarr.mrcurls.org
   gateways:
   - istio-system/main-gateway
   http:

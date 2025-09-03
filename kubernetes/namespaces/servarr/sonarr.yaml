@@ -88,7 +88,7 @@ metadata:
   namespace: servarr
 spec:
   hosts:
-  - sonarr.mrcurls.net
+  - sonarr.mrcurls.org
   gateways:
   - istio-system/main-gateway
   http:

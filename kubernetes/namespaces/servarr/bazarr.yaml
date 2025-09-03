@@ -88,7 +88,7 @@ metadata:
   namespace: servarr
 spec:
   hosts:
-  - bazarr.mrcurls.net
+  - bazarr.mrcurls.org
   gateways:
   - istio-system/main-gateway
   http:

@@ -134,7 +134,7 @@ metadata:
   namespace: database
 spec:
   hosts:
-  - influxdb.mrcurls.net
+  - influxdb.mrcurls.org
   gateways:
   - istio-system/main-gateway
   http:

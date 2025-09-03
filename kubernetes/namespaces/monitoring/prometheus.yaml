@@ -133,7 +133,7 @@ metadata:
   namespace: monitoring
 spec:
   hosts:
-  - prometheus.mrcurls.net
+  - prometheus.mrcurls.org
   gateways:
   - istio-system/main-gateway
   http:

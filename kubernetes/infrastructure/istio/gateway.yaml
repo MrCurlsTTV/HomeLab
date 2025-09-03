@@ -16,13 +16,13 @@ spec:
       mode: SIMPLE
       credentialName: wildcard-mrcurls-net-tls
     hosts:
-    - "*.mrcurls.net"
+    - "*.mrcurls.org"
   - port:
       number: 80
       name: http
       protocol: HTTP
     hosts:
-    - "*.mrcurls.net"
+    - "*.mrcurls.org"
     tls:
       httpsRedirect: true
 ---
@@ -33,7 +33,7 @@ metadata:
   namespace: argocd
 spec:
   hosts:
-  - argocd.mrcurls.net
+  - argocd.mrcurls.org
   gateways:
   - istio-system/main-gateway
   http:

@@ -1,0 +1,99 @@
+# Lidarr deployment for music management
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lidarr
+  namespace: servarr
+  labels:
+    app: lidarr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lidarr
+  template:
+    metadata:
+      labels:
+        app: lidarr
+    spec:
+      containers:
+      - name: lidarr
+        image: lscr.io/linuxserver/lidarr:latest
+        ports:
+        - containerPort: 8686
+        env:
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+        - name: TZ
+          value: "America/Chicago"
+        volumeMounts:
+        - name: config
+          mountPath: /config/lidarr
+        - name: downloads
+          mountPath: /downloads
+        - name: music
+          mountPath: /music
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 250m
+            memory: 256Mi
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: lidarr-config
+      - name: downloads
+        persistentVolumeClaim:
+          claimName: shared-downloads
+      - name: music
+        persistentVolumeClaim:
+          claimName: shared-music
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lidarr
+  namespace: servarr
+  labels:
+    app: lidarr
+spec:
+  selector:
+    app: lidarr
+  ports:
+  - name: http
+    port: 8686
+    targetPort: 8686
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lidarr-config
+  namespace: servarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: flash-configs-nfs
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: lidarr-vs
+  namespace: servarr
+spec:
+  hosts:
+  - lidarr.mrcurls.net
+  gateways:
+  - istio-system/main-gateway
+  http:
+  - route:
+    - destination:
+        host: lidarr
+        port:
+          number: 8686

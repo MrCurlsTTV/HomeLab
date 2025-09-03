@@ -1,0 +1,8 @@
+# Database namespace for shared database services
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: database
+  labels:
+    name: database
+    istio-injection: enabled

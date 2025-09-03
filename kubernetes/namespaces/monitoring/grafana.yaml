@@ -1,0 +1,143 @@
+# Grafana deployment for visualization and dashboards
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:10.1.0
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: grafana-secret
+              key: admin_password
+        - name: GF_AUTH_GENERIC_OAUTH_ENABLED
+          value: "true"
+        - name: GF_AUTH_GENERIC_OAUTH_NAME
+          value: "Authentik"
+        - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: grafana-secret
+              key: oauth_client_id
+        - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: grafana-secret
+              key: oauth_client_secret
+        - name: GF_AUTH_GENERIC_OAUTH_AUTH_URL
+          value: "https://auth.mrcurls.net/application/o/authorize/"
+        - name: GF_AUTH_GENERIC_OAUTH_TOKEN_URL
+          value: "https://auth.mrcurls.net/application/o/token/"
+        - name: GF_AUTH_GENERIC_OAUTH_API_URL
+          value: "https://auth.mrcurls.net/application/o/userinfo/"
+        volumeMounts:
+        - name: data
+          mountPath: /data/grafana
+        - name: config
+          mountPath: /config/grafana/provisioning
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 250m
+            memory: 256Mi
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: grafana-data
+      - name: config
+        configMap:
+          name: grafana-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+spec:
+  selector:
+    app: grafana
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-secret
+  namespace: monitoring
+type: Opaque
+stringData:
+  admin_password: "your-grafana-admin-password"
+  oauth_client_id: "your-authentik-oauth-client-id"
+  oauth_client_secret: "your-authentik-oauth-client-secret"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: monitoring
+data:
+  datasources.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki:3100
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: monitoring-data-nfs
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: grafana-vs
+  namespace: monitoring
+spec:
+  hosts:
+  - grafana.mrcurls.net
+  gateways:
+  - istio-system/main-gateway
+  http:
+  - route:
+    - destination:
+        host: grafana
+        port:
+          number: 3000

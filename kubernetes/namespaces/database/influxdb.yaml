@@ -1,0 +1,145 @@
+# InfluxDB deployment for time-series data storage
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: influxdb
+  namespace: database
+  labels:
+    app: influxdb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: influxdb
+  template:
+    metadata:
+      labels:
+        app: influxdb
+    spec:
+      containers:
+      - name: influxdb
+        image: influxdb:2.7-alpine
+        ports:
+        - containerPort: 8086
+        env:
+        - name: DOCKER_INFLUXDB_INIT_MODE
+          value: "setup"
+        - name: DOCKER_INFLUXDB_INIT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-secret
+              key: username
+        - name: DOCKER_INFLUXDB_INIT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-secret
+              key: password
+        - name: DOCKER_INFLUXDB_INIT_ORG
+          value: "homelab"
+        - name: DOCKER_INFLUXDB_INIT_BUCKET
+          value: "monitoring"
+        - name: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-secret
+              key: admin_token
+        volumeMounts:
+        - name: influxdb-data
+          mountPath: /data/influxdb
+        - name: influxdb-backup
+          mountPath: /backup/influxdb
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: 8086
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: 8086
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: influxdb-data
+        persistentVolumeClaim:
+          claimName: influxdb-data
+      - name: influxdb-backup
+        persistentVolumeClaim:
+          claimName: influxdb-backup
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: influxdb
+  namespace: database
+  labels:
+    app: influxdb
+spec:
+  selector:
+    app: influxdb
+  ports:
+  - name: http
+    port: 8086
+    targetPort: 8086
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: influxdb-secret
+  namespace: database
+type: Opaque
+stringData:
+  username: "influxdb"
+  password: "your-strong-influxdb-password"
+  admin_token: "your-influxdb-admin-token"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: influxdb-data
+  namespace: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: influxdb-nfs
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: influxdb-backup
+  namespace: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: vault-data-nfs
+  resources:
+    requests:
+      storage: 25Gi
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: influxdb-vs
+  namespace: database
+spec:
+  hosts:
+  - influxdb.mrcurls.net
+  gateways:
+  - istio-system/main-gateway
+  http:
+  - route:
+    - destination:
+        host: influxdb
+        port:
+          number: 8086

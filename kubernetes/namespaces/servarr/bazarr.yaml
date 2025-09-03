@@ -1,0 +1,99 @@
+# Bazarr deployment for subtitle management
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bazarr
+  namespace: servarr
+  labels:
+    app: bazarr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bazarr
+  template:
+    metadata:
+      labels:
+        app: bazarr
+    spec:
+      containers:
+      - name: bazarr
+        image: lscr.io/linuxserver/bazarr:latest
+        ports:
+        - containerPort: 6767
+        env:
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+        - name: TZ
+          value: "America/Chicago"
+        volumeMounts:
+        - name: config
+          mountPath: /config/bazarr
+        - name: movies
+          mountPath: /movies
+        - name: tv
+          mountPath: /tv
+        resources:
+          limits:
+            cpu: 300m
+            memory: 256Mi
+          requests:
+            cpu: 150m
+            memory: 128Mi
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: bazarr-config
+      - name: movies
+        persistentVolumeClaim:
+          claimName: shared-movies
+      - name: tv
+        persistentVolumeClaim:
+          claimName: shared-tv
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bazarr
+  namespace: servarr
+  labels:
+    app: bazarr
+spec:
+  selector:
+    app: bazarr
+  ports:
+  - name: http
+    port: 6767
+    targetPort: 6767
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bazarr-config
+  namespace: servarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: flash-configs-nfs
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: bazarr-vs
+  namespace: servarr
+spec:
+  hosts:
+  - bazarr.mrcurls.net
+  gateways:
+  - istio-system/main-gateway
+  http:
+  - route:
+    - destination:
+        host: bazarr
+        port:
+          number: 6767

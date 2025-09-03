@@ -63,9 +63,9 @@ spec:
           value: "mrcurls@mrcurls.org"
         volumeMounts:
         - name: media
-          mountPath: /media
+          mountPath: /data/authentik/media
         - name: templates
-          mountPath: /templates
+          mountPath: /config/authentik/templates
         resources:
           limits:
             cpu: 1000m
@@ -126,11 +126,11 @@ spec:
               key: secret_key
         volumeMounts:
         - name: media
-          mountPath: /media
+          mountPath: /data/authentik/media
         - name: templates
-          mountPath: /templates
+          mountPath: /config/authentik/templates
         - name: certs
-          mountPath: /certs
+          mountPath: /config/authentik/certs
         resources:
           limits:
             cpu: 500m

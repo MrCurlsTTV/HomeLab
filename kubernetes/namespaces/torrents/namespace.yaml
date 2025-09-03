@@ -1,0 +1,8 @@
+# Torrents namespace for download clients
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: torrents
+  labels:
+    name: torrents
+    istio-injection: enabled

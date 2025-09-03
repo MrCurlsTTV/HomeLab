@@ -1,0 +1,133 @@
+# Qbittorrent deployment with CloudflareD VPN routing
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent
+  namespace: torrents
+  labels:
+    app: qbittorrent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qbittorrent
+  template:
+    metadata:
+      labels:
+        app: qbittorrent
+    spec:
+      containers:
+      - name: qbittorrent
+        image: lscr.io/linuxserver/qbittorrent:latest
+        ports:
+        - containerPort: 8080
+        - containerPort: 6881
+          protocol: TCP
+        - containerPort: 6881
+          protocol: UDP
+        env:
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+        - name: TZ
+          value: "America/Chicago"
+        - name: WEBUI_PORT
+          value: "8080"
+        volumeMounts:
+        - name: config
+          mountPath: /config/qbittorrent
+        - name: downloads
+          mountPath: /downloads
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+      - name: cloudflared
+        image: cloudflare/cloudflared:latest
+        args: ["tunnel", "--no-autoupdate", "run", "--token", "$(TUNNEL_TOKEN)"]
+        env:
+        - name: TUNNEL_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cloudflare-tunnel
+              key: token
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: qbittorrent-config
+      - name: downloads
+        persistentVolumeClaim:
+          claimName: shared-downloads
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbittorrent
+  namespace: torrents
+  labels:
+    app: qbittorrent
+spec:
+  selector:
+    app: qbittorrent
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: torrent-tcp
+    port: 6881
+    targetPort: 6881
+    protocol: TCP
+  - name: torrent-udp
+    port: 6881
+    targetPort: 6881
+    protocol: UDP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbittorrent-config
+  namespace: torrents
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: flash-configs-nfs
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-tunnel
+  namespace: torrents
+type: Opaque
+stringData:
+  token: "your-cloudflare-tunnel-token-here"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: qbittorrent-vs
+  namespace: torrents
+spec:
+  hosts:
+  - qbittorrent.mrcurls.net
+  gateways:
+  - istio-system/main-gateway
+  http:
+  - route:
+    - destination:
+        host: qbittorrent
+        port:
+          number: 8080

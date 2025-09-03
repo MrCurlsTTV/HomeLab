@@ -1,0 +1,52 @@
+# Shared storage volumes for media content
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-downloads
+  namespace: servarr
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: vault-data-nfs
+  resources:
+    requests:
+      storage: 500Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-movies
+  namespace: servarr
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: vault-data-nfs
+  resources:
+    requests:
+      storage: 2Ti
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-tv
+  namespace: servarr
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: vault-data-nfs
+  resources:
+    requests:
+      storage: 2Ti
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-music
+  namespace: servarr
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: vault-data-nfs
+  resources:
+    requests:
+      storage: 500Gi

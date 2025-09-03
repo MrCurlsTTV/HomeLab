@@ -1,0 +1,105 @@
+# ArgoCD applications for all service namespaces
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: servarr
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MrCurlsTTV/homelab.git
+    targetRevision: main
+    path: kubernetes/namespaces/servarr
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: servarr
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: torrents
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MrCurlsTTV/homelab.git
+    targetRevision: main
+    path: kubernetes/namespaces/torrents
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: torrents
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MrCurlsTTV/homelab.git
+    targetRevision: main
+    path: kubernetes/namespaces/monitoring
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: database
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MrCurlsTTV/homelab.git
+    targetRevision: main
+    path: kubernetes/namespaces/database
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: database
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: auth
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MrCurlsTTV/homelab.git
+    targetRevision: main
+    path: kubernetes/namespaces/auth
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: auth
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

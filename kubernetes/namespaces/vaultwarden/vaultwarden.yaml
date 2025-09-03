@@ -1,0 +1,146 @@
+# Vaultwarden password manager with secure proxy
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vaultwarden
+  labels:
+    name: vaultwarden
+    istio-injection: enabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vaultwarden
+  namespace: vaultwarden
+  labels:
+    app: vaultwarden
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vaultwarden
+  template:
+    metadata:
+      labels:
+        app: vaultwarden
+    spec:
+      containers:
+      - name: vaultwarden
+        image: vaultwarden/server:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://vaultwarden:password@postgresql.database.svc.cluster.local/vaultwarden"
+        - name: ADMIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vaultwarden-secret
+              key: admin_token
+        - name: DOMAIN
+          value: "https://vault.mrcurls.net"
+        - name: SIGNUPS_ALLOWED
+          value: "false"
+        - name: INVITATIONS_ALLOWED
+          value: "true"
+        - name: SMTP_HOST
+          value: "smtp.gmail.com"
+        - name: SMTP_FROM
+          value: "mrcurls@mrcurls.org"
+        - name: SMTP_PORT
+          value: "587"
+        - name: SMTP_SECURITY
+          value: "starttls"
+        volumeMounts:
+        - name: data
+          mountPath: /data/vaultwarden
+        resources:
+          limits:
+            cpu: 300m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      - name: cloudflared
+        image: cloudflare/cloudflared:latest
+        args: ["tunnel", "--no-autoupdate", "run", "--token", "$(TUNNEL_TOKEN)"]
+        env:
+        - name: TUNNEL_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: cloudflare-tunnel
+              key: token
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: vaultwarden-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vaultwarden
+  namespace: vaultwarden
+  labels:
+    app: vaultwarden
+spec:
+  selector:
+    app: vaultwarden
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vaultwarden-secret
+  namespace: vaultwarden
+type: Opaque
+stringData:
+  admin_token: "your-vaultwarden-admin-token"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-tunnel
+  namespace: vaultwarden
+type: Opaque
+stringData:
+  token: "your-cloudflare-tunnel-token-here"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vaultwarden-data
+  namespace: vaultwarden
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: flash-configs-nfs
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: vaultwarden-vs
+  namespace: vaultwarden
+spec:
+  hosts:
+  - vault.mrcurls.net
+  gateways:
+  - istio-system/main-gateway
+  http:
+  - route:
+    - destination:
+        host: vaultwarden
+        port:
+          number: 80

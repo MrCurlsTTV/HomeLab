@@ -1,0 +1,8 @@
+# Servarr namespace for media management applications
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: servarr
+  labels:
+    name: servarr
+    istio-injection: enabled

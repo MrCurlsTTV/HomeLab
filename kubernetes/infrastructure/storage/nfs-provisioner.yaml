@@ -1,0 +1,60 @@
+# NFS storage classes and provisioners for persistent data
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: vault-data-nfs
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: 192.168.103.114
+  share: /mnt/Vault/Data
+  mountOptions: "rw,noatime,vers=4"
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: influxdb-nfs
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: 192.168.103.114
+  share: /mnt/Vault/Data/InfluxDB
+  mountOptions: "rw,noatime,vers=4"
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: etcd-nfs
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: 192.168.103.114
+  share: /mnt/Vault/Data/etcd
+  mountOptions: "rw,noatime,vers=4"
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: flash-configs-nfs
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: 192.168.103.114
+  share: /mnt/Flash/Configs
+  mountOptions: "rw,noatime,vers=4"
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: monitoring-data-nfs
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: 192.168.103.114
+  share: /mnt/Vault/Data/monitoring-data
+  mountOptions: "rw,noatime,vers=4"
+reclaimPolicy: Retain
+volumeBindingMode: Immediate

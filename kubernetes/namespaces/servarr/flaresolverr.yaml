@@ -1,26 +1,28 @@
-# Prowlarr deployment for indexer management
+# FlareSolverr deployment for Cloudflare bypass
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prowlarr
+  name: flaresolverr
   namespace: servarr
   labels:
-    app: prowlarr
+    app: flaresolverr
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: prowlarr
+      app: flaresolverr
   template:
     metadata:
       labels:
-        app: prowlarr
+        app: flaresolverr
     spec:
       containers:
-      - name: prowlarr
-        image: lscr.io/linuxserver/prowlarr:latest
+      - name: flaresolverr
+        image: ghcr.io/flaresolverr/flaresolverr:latest
         ports:
-        - containerPort: 9696
+        - containerPort: 8191
+        - containerPort: 8192
+          name: prometheus
         env:
         - name: PUID
           value: "1000"
@@ -28,9 +30,15 @@ spec:
           value: "1000"
         - name: TZ
           value: "America/Chicago"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: PROMETHEUS_ENABLED
+          value: "true"
+        - name: PROMETHEUS_PORT
+          value: "8192"
         volumeMounts:
         - name: config
-          mountPath: /config/prowlarr
+          mountPath: /config/flaresolverr
         resources:
           limits:
             cpu: 300m
@@ -41,27 +49,30 @@ spec:
       volumes:
       - name: config
         persistentVolumeClaim:
-          claimName: prowlarr-config
+          claimName: flaresolverr-config
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: prowlarr
+  name: flaresolverr
   namespace: servarr
   labels:
-    app: prowlarr
+    app: flaresolverr
 spec:
   selector:
-    app: prowlarr
+    app: flaresolverr
   ports:
   - name: http
-    port: 9696
-    targetPort: 9696
+    port: 8191
+    targetPort: 8191
+  - name: prometheus
+    port: 8192
+    targetPort: 8192
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: prowlarr-config
+  name: flaresolverr-config
   namespace: servarr
 spec:
   accessModes:
@@ -69,21 +80,4 @@ spec:
   storageClassName: flash-configs-nfs
   resources:
     requests:
-      storage: 2Gi
----
-apiVersion: networking.istio.io/v1beta1
-kind: VirtualService
-metadata:
-  name: prowlarr-vs
-  namespace: servarr
-spec:
-  hosts:
-  - prowlarr.mrcurls.org
-  gateways:
-  - istio-system/main-gateway
-  http:
-  - route:
-    - destination:
-        host: prowlarr
-        port:
-          number: 9696
+      storage: 1Gi

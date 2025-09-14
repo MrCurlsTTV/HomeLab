@@ -9,10 +9,13 @@ resource "proxmox_vm_qemu" "prod" {
     boot        = lookup(each.value, "boot", "order=scsi0;ide2;net0")
 
     #Hardware
-    cores       = lookup(each.value, "cores", 2)
+    cpu {
+        cores   = lookup(each.value, "cores", 2)
+        type    = lookup(each.value, "cpu_type", "host")
+        numa    = each.value.target_node == "nas" ? false : lookup(each.value, "numa", true)
+    }
     memory      = lookup(each.value, "memory", 2048)
     scsihw      = lookup(each.value, "scsihw", "virtio-scsi-pci")
-    cpu_type    = lookup(each.value, "cpu_type", "host")
 
     disks {
         ide{
@@ -65,5 +68,4 @@ resource "proxmox_vm_qemu" "prod" {
     # Options
     agent           = lookup(each.value, "agent", 1)
     onboot          = lookup(each.value, "onboot", true)
-    numa            = each.value.target_node == "nas" ? false : lookup(each.value, "numa", true)
 }

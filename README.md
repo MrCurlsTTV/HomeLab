@@ -1,4 +1,4 @@
-# Clusterio Kubernetes Infrastructure
+# Homelab Kubernetes Infrastructure
 
 Enterprise-grade Kubernetes GitOps platform with ArgoCD deploying media management, monitoring, authentication, and database services via Istio service mesh on RKE2 cluster.
 
@@ -111,4 +111,5 @@ Available storage classes for persistent volumes:
 1. Create application manifests in appropriate namespace directory
 2. Add ArgoCD Application definition in `argocd/applications/`
 3. Commit changes to Git repository
+
 4. ArgoCD will automatically sync the new application

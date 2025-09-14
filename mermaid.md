@@ -1,3 +1,4 @@
+```mermaid
 graph TB
     subgraph "Infrastructure Layer"
         direction TB
@@ -257,3 +258,4 @@ graph TB
     class AUTH,SERVARR,RADARR,SONARR,LIDARR,BAZARR,OVERSEERR,PROWLARR,QB,NZB,PSQL,REDIS,INFLUX,PROM,GRAF,LOKI,ALLOY,VAULT appService
     class CLOUDFLARE,DOMAIN,INTERNET,CF external
     class AZURE,TERRAFORM,ANSIBLE,GIT pipeline
+```

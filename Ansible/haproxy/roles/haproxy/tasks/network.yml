@@ -145,6 +145,14 @@
     group: root
     mode: '0755'
 
+# Fix line endings on network shell scripts
+- name: Fix line endings on network shell scripts
+  shell: sed -i 's/\r$//' "{{ item }}"
+  become: true
+  with_items:
+    - /usr/local/bin/setup-vlan.sh
+    - /etc/rc.local
+
 # Add to rc.local to ensure it runs on boot
 - name: Ensure rc.local exists and is executable
   copy:

@@ -16,7 +16,7 @@
 
 - name: Copy Cloudflare configuration file
   template:
-    src: files/cloudflare.ini
+    src: templates/cloudflare.ini.j2
     dest: /etc/letsencrypt/cloudflare.ini
     owner: root
     group: root
@@ -45,30 +45,6 @@
     owner: root
     group: root
     mode: '0700'
-
-# Kill any running Certbot processes and clean up locks
-- name: Find any running Certbot processes
-  shell: pgrep -f certbot || echo ""
-  register: certbot_processes
-  changed_when: false
-
-- name: Kill any running Certbot processes
-  shell: "kill -9 {{ certbot_processes.stdout_lines | join(' ') }}"
-  when: certbot_processes.stdout_lines | length > 0
-  ignore_errors: true
-
-- name: Remove Certbot lock files
-  file:
-    path: "{{ item }}"
-    state: absent
-  with_items:
-    - /var/log/letsencrypt/.certbot.lock
-    - /var/lib/letsencrypt/locks
-  ignore_errors: true
-
-- name: Remove temporary Certbot directories
-  shell: find /tmp -name "*certbot*" -exec rm -rf {} \; 2>/dev/null || true
-  changed_when: false
 
 - name: Install jq for JSON processing
   package:
@@ -113,14 +89,6 @@
     - /var/log/letsencrypt
     - /etc/letsencrypt/renewal-hooks/post
 
-- name: Create Cloudflare credentials file
-  template:
-    src: files/cloudflare.ini
-    dest: /etc/letsencrypt/cloudflare.ini
-    owner: root
-    group: root
-    mode: '0600'
-
 - name: Copy certificate renewal hooks
   copy:
     src: "files/{{ item }}"
@@ -131,12 +99,21 @@
   with_items:
     - renew-certs.sh
 
+- name: Create symlink for post-hook script (fixes certbot post-hook error)
+  file:
+    src: /usr/local/bin/renew-certs.sh
+    dest: /etc/letsencrypt/renewal-hooks/post/renew-certs.sh
+    state: link
+    force: yes
+  become: true
+
 - name: Add certificate renewal cron job
   cron:
     name: "Renew Let's Encrypt certificates"
     special_time: daily
     job: "certbot renew --quiet"
     user: root
+
 
 # Copy over the certificate request script
 - name: Copy certificate request script
@@ -145,7 +122,8 @@
     dest: /usr/local/bin/request-cert.sh
     owner: root
     group: root
-    mode: '0700'
+    mode: '0755'
+  become: true
 
 # Copy over the certificate cleanup script
 - name: Copy certificate cleanup script
@@ -154,18 +132,64 @@
     dest: /usr/local/bin/cleanup-certs.sh
     owner: root
     group: root
-    mode: '0700'
+    mode: '0755'
+  become: true
+
+# Copy diagnostic script
+- name: Copy HAProxy certificate diagnostic script
+  copy:
+    src: files/haproxy-cert-diagnostic.sh
+    dest: /usr/local/bin/haproxy-cert-diagnostic.sh
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+# Fix line endings on all shell scripts (convert CRLF to LF)
+- name: Fix line endings on certificate management scripts
+  shell: sed -i 's/\r$//' "{{ item }}"
+  become: true
+  with_items:
+    - /usr/local/bin/request-cert.sh
+    - /usr/local/bin/cleanup-certs.sh
+    - /usr/local/bin/renew-certs.sh
+    - /usr/local/bin/haproxy-cert-diagnostic.sh
+    - /usr/local/bin/letsencrypt-dns-01-hook.sh
+    - /usr/local/bin/letsencrypt-dns-cleanup-hook.sh
+
+- name: Verify scripts are executable after line ending fix
+  stat:
+    path: "{{ item }}"
+  with_items:
+    - /usr/local/bin/request-cert.sh
+    - /usr/local/bin/cleanup-certs.sh
+    - /usr/local/bin/renew-certs.sh
+    - /usr/local/bin/haproxy-cert-diagnostic.sh
+  register: script_verification
+
+- name: Display script verification results
+  debug:
+    msg: "{{ item.item | basename }}: {{ 'OK' if item.stat.exists and item.stat.executable else 'FAILED' }}"
+  with_items: "{{ script_verification.results }}"
+
 
 # Clean up any existing duplicate certificates first
 - name: Clean up any duplicate certificates
   command: /usr/local/bin/cleanup-certs.sh
+  become: true
   ignore_errors: true
 
-# Issue certificate (will only run if certificate doesn't exist)
+# Check if Let's Encrypt certificate already exists
 - name: Check if certificate already exists
   stat:
     path: "/etc/letsencrypt/live/{{ domain_name }}/cert.pem"
   register: cert_file
+
+# Add random delay to prevent simultaneous certificate requests
+- name: Add random delay to prevent simultaneous requests
+  wait_for:
+    timeout: "{{ ansible_play_hosts.index(inventory_hostname) * 30 }}"
+  when: not cert_file.stat.exists | default(true)
 
 - name: Issue Let's Encrypt certificate with the certificate request script
   command: >
@@ -179,10 +203,15 @@
     -c /etc/letsencrypt/cloudflare.ini
     -r 3
     -s haproxy
-  when: not cert_file.stat.exists
+  become: true
+  when: not cert_file.stat.exists | default(true)
   ignore_errors: true
 
-# After the certificate issuance task, check for any certificates
+- name: Log certificate request status
+  debug:
+    msg: "{{ inventory_hostname }} {{ 'requested' if not cert_file.stat.exists else 'already has' }} Let's Encrypt certificate"
+
+# After the certificate issuance task, check for any certificates (all nodes)
 - name: Check for any Let's Encrypt certificates (including with suffixes)
   find:
     paths: /etc/letsencrypt/live
@@ -191,7 +220,7 @@
   register: letsencrypt_cert_dirs
   ignore_errors: true
 
-# Create directory for HAProxy certificates
+# Create directory for HAProxy certificates (all nodes)
 - name: Create HAProxy certs directory
   file:
     path: /etc/haproxy/certs
@@ -200,7 +229,7 @@
     group: root
     mode: '0700'
 
-# Combine certificates for HAProxy if any are found
+# Combine certificates for HAProxy if any are found (all nodes)
 - name: Combine certificates for HAProxy
   shell: |
     for domain_dir in $(find /etc/letsencrypt/live/ -maxdepth 1 -type d | grep -v README); do
@@ -211,4 +240,36 @@
         echo "Created combined certificate for $domain_name"
       fi
     done
-  when: letsencrypt_cert_dirs.matched > 0 or cert_file.stat.exists
+  when: letsencrypt_cert_dirs.matched > 0 or cert_file.stat.exists | default(false)
+
+
+- name: Check if HAProxy certificate is now available
+  stat:
+    path: "/etc/haproxy/certs/{{ domain_name }}.pem"
+  register: haproxy_cert_final_check
+
+- name: Update HAProxy configuration with SSL
+  template:
+    src: templates/haproxy_ssl.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: '0644'
+  when: haproxy_cert_final_check.stat.exists
+  notify: Restart HAProxy
+
+- name: Log SSL configuration update
+  debug:
+    msg: "{{ inventory_hostname }}: HAProxy SSL configuration {{ 'updated' if haproxy_cert_final_check.stat.exists else 'skipped (no certificate)' }}"
+
+- name: Ensure HAProxy is restarted after SSL configuration
+  systemd:
+    name: haproxy
+    state: restarted
+  when: haproxy_cert_final_check.stat.exists
+
+- name: Verify HAProxy is running with SSL
+  systemd:
+    name: haproxy
+    state: started
+  when: haproxy_cert_final_check.stat.exists

@@ -11,24 +11,27 @@
 - name: Server node kubectl tasks
   when: rke2_role == 'server'
   block:
-    - name: Install Kubectl using snap
-      community.general.snap:
-        name: kubectl
-        classic: yes
+    - name: Add Kubernetes APT repository key
+      apt_key:
+        url: https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key
+        keyring: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
         state: present
-      register: kubectl_install
-      retries: 3
-      delay: 10
-      timeout: 45
-      failed_when: false
 
-    # Fallback to direct download if snap fails
-    - name: Install kubectl (fallback to direct download)
-      get_url:
-        url: "https://dl.k8s.io/release/{{ kubernetes_version }}/bin/linux/amd64/kubectl"
-        dest: /usr/local/bin/kubectl
-        mode: '0755'
-      when: kubectl_install is failed or kubectl_install.rc is defined and kubectl_install.rc != 0
+    - name: Add Kubernetes APT repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /"
+        state: present
+        filename: kubernetes
+
+    - name: Update APT cache after adding Kubernetes repository
+      apt:
+        update_cache: yes
+
+    - name: Install kubectl via APT (most reliable method)
+      apt:
+        name: kubectl
+        state: present
+        force_apt_get: yes
 
     - name: Create kubectl completion
       shell: kubectl completion bash > /etc/bash_completion.d/kubectl

@@ -56,9 +56,9 @@ frontend http_front
     # For normal traffic (basic setup before SSL is available)
     default_backend empty_backend
 
-# Frontend for HTTPS (no SSL for now - will be added later)
+# Frontend for HTTPS
 frontend https_front
-    bind {{ virtual_ip }}:443
+    bind {{ virtual_ip }}:443 ssl crt /etc/haproxy/certs/{{ domain_name }}.pem
     mode http
     
     # Define ACL for stats
@@ -78,7 +78,7 @@ frontend https_front
 
 # Frontend for Kubernetes API - TCP mode for direct passthrough
 frontend k8s_api_front
-    bind {{ virtual_ip }}:6443
+    bind {{ virtual_ip }}:6443 ssl crt /etc/haproxy/certs/{{ domain_name }}.pem
     option tcplog
     mode tcp
     {% if groups['kubernetes'] is defined and groups['kubernetes']|length > 0 %}
@@ -112,7 +112,7 @@ backend istio_ingress_backend
     balance roundrobin
     option httpchk GET /healthz/ready HTTP/1.1
     http-check expect status 200
-{% for host in groups['k8s_worker'] %}
+{% for host in groups['kubernetes'] if hostvars[host]['node_role'] is defined and hostvars[host]['node_role'] == 'worker' %}
     server {{ host }} {{ hostvars[host]['ansible_host'] }}:30080 check
 {% endfor %}
 

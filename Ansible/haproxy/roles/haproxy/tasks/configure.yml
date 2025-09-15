@@ -76,55 +76,6 @@
       Please pre-create these records or be ready to create them quickly.
       The automation will wait 60 seconds for propagation.
 
-# Fallback to self-signed certificates
-- name: Create self-signed certificate 
-  block:
-    - name: Generate self-signed certificate
-      command: >
-        openssl req -x509 -newkey rsa:4096 -nodes -keyout /etc/haproxy/certs/{{ domain_name }}.key 
-        -out /etc/haproxy/certs/{{ domain_name }}.crt -days 365 
-        -subj "/CN={{ domain_name }}/O=HAProxy/C=US"
-      args:
-        creates: "/etc/haproxy/certs/{{ domain_name }}.key"
-      
-    - name: Combine self-signed certificates
-      shell: >
-        cat /etc/haproxy/certs/{{ domain_name }}.crt /etc/haproxy/certs/{{ domain_name }}.key > 
-        /etc/haproxy/certs/{{ domain_name }}.pem
-      args:
-        creates: "/etc/haproxy/certs/{{ domain_name }}.pem"
-      
-    - name: Set appropriate permissions on certificate file
-      file:
-        path: "/etc/haproxy/certs/{{ domain_name }}.pem"
-        owner: root
-        group: root
-        mode: '0600'
-        
-    - name: Warn about using self-signed certificates
-      debug:
-        msg: "Using self-signed certificates for testing. These are not trusted by browsers."
-
-# Set certificate availability fact
-- name: Check if HAProxy certificate exists
-  stat:
-    path: "/etc/haproxy/certs/{{ domain_name }}.pem"
-  register: haproxy_cert_stat
-
-- name: Set certificate availability fact
-  set_fact:
-    ssl_cert_available: "{{ haproxy_cert_stat.stat.exists | default(false) }}"
-
-# Update HAProxy configuration with SSL
-- name: Update HAProxy configuration with SSL
-  template:
-    src: templates/haproxy_ssl.cfg.j2
-    dest: /etc/haproxy/haproxy.cfg
-    owner: root
-    group: root
-    mode: '0644'
-  when: haproxy_cert_stat.stat.exists
-  notify: Restart HAProxy
 
 # Ensure configuration has proper line endings
 - name: Ensure HAProxy configuration has proper line endings

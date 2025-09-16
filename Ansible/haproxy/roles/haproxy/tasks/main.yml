@@ -10,7 +10,11 @@
 - name: Include network configuration tasks
   import_tasks: network.yml
 
-# Set up certificate directories and scripts first
+# Set up high availability
+- name: Include high availability tasks
+  import_tasks: ha.yml
+
+# Set up Let's Encrypt certificates with DNS challenge
 - name: Include certificate tasks
   import_tasks: cert.yml
 
@@ -18,15 +22,6 @@
 - name: Include configuration tasks
   import_tasks: configure.yml
   
-# Set up high availability
-- name: Include high availability tasks
-  import_tasks: ha.yml
-  
 # Configure monitoring
 - name: Include monitoring tasks
   import_tasks: monitoring.yml
-
-- name: Install HAProxy
-  package:
-    name: haproxy
-    state: present

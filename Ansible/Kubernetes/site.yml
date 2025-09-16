@@ -37,4 +37,13 @@
   vars:
     is_first_control_plane: false
   roles:
-    - role: rke2 
+    - role: rke2
+
+- name: Bootstrap cluster services (after all nodes are ready)
+  hosts: rke2_servers[0]
+  become: true
+  vars:
+    is_first_control_plane: true
+  tasks:
+    - name: Include bootstrap tasks
+      include_tasks: roles/rke2/tasks/bootstrap.yml

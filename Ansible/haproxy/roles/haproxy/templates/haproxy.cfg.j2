@@ -40,12 +40,15 @@ frontend http_front
     mode http
     option httplog
     
-    # Define ACLs for Kubernetes services
-    acl host_grafana hdr(host) -i grafana.apps.mrcurls.org
-    acl host_argocd hdr(host) -i argocd.apps.mrcurls.org
+    # Define ACLs for dynamic services
+{% for service in haproxy_services %}
+    acl host_{{ service.name }} hdr(host) -i {{ service.host }}
+{% endfor %}
 
-    # Route to Istio for Kubernetes services
-    use_backend istio_ingress_backend if host_grafana or host_argocd
+    # Route to backends based on service configuration
+{% for service in haproxy_services %}
+    use_backend {{ service.backend }} if host_{{ service.name }}
+{% endfor %}
     
     # Define ACL for stats
     acl stats_acl path_beg {{ haproxy_stats_uri }}
@@ -58,7 +61,11 @@ frontend http_front
 
 # Frontend for HTTPS
 frontend https_front
+    {% if ssl_cert_available | default(true) %}
     bind {{ virtual_ip }}:443 ssl crt /etc/haproxy/certs/{{ domain_name }}.pem
+    {% else %}
+    bind {{ virtual_ip }}:443
+    {% endif %}
     mode http
     
     # Define ACL for stats
@@ -78,7 +85,7 @@ frontend https_front
 
 # Frontend for Kubernetes API - TCP mode for direct passthrough
 frontend k8s_api_front
-    bind {{ virtual_ip }}:6443 ssl crt /etc/haproxy/certs/{{ domain_name }}.pem
+    bind {{ virtual_ip }}:6443
     option tcplog
     mode tcp
     {% if groups['kubernetes'] is defined and groups['kubernetes']|length > 0 %}
@@ -106,14 +113,25 @@ backend empty_backend
     mode http
     http-request return status 200 content-type "text/html" string "<html><body><h1>HAProxy Load Balancer</h1><p>This is the default page.</p></body></html>"
 
-# Backend for Istio Ingress
-backend istio_ingress_backend
-    mode http
-    balance roundrobin
-    option httpchk GET /healthz/ready HTTP/1.1
-    http-check expect status 200
+# Dynamic backends based on configuration
+{% for backend_name, backend_config in haproxy_backends.items() %}
+backend {{ backend_name }}
+    mode {{ backend_config.mode }}
+    balance {{ backend_config.balance }}
+{% if backend_config.health_check is defined %}
+    option httpchk {{ backend_config.health_check.method }} {{ backend_config.health_check.path }} {{ backend_config.health_check.protocol }}
+    http-check expect status {{ backend_config.health_check.expected_status }}
+{% endif %}
+{% if backend_name == 'istio_ingress_backend' %}
 {% for host in groups['kubernetes'] if hostvars[host]['node_role'] is defined and hostvars[host]['node_role'] == 'worker' %}
-    server {{ host }} {{ hostvars[host]['ansible_host'] }}:30080 check
+    server {{ host }} {{ hostvars[host]['ansible_host'] }}:30080 check port 10250
+{% endfor %}
+{% else %}
+{% for server in backend_config.servers %}
+    server {{ server.name }} {{ server.host }}:{{ server.port }}{% if server.check %} check{% endif %}
+{% endfor %}
+{% endif %}
+
 {% endfor %}
 
 {% if groups['kubernetes'] is defined and groups['kubernetes']|length > 0 %}

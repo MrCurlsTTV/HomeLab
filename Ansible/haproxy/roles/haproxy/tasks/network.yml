@@ -146,12 +146,9 @@
     mode: '0755'
 
 # Fix line endings on network shell scripts
-- name: Fix line endings on network shell scripts
-  shell: sed -i 's/\r$//' "{{ item }}"
+- name: Fix line endings on VLAN setup script
+  shell: sed -i 's/\r$//' /usr/local/bin/setup-vlan.sh
   become: true
-  with_items:
-    - /usr/local/bin/setup-vlan.sh
-    - /etc/rc.local
 
 # Add to rc.local to ensure it runs on boot
 - name: Ensure rc.local exists and is executable
@@ -168,6 +165,11 @@
     owner: root
     group: root
     mode: '0755'
+  when: ansible_distribution != 'Ubuntu'
+
+- name: Fix line endings on rc.local (after creation)
+  shell: sed -i 's/\r$//' /etc/rc.local
+  become: true
   when: ansible_distribution != 'Ubuntu'
 
 # For Ubuntu, create a systemd service

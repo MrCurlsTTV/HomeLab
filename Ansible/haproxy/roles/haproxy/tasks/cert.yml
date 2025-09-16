@@ -1,3 +1,7 @@
+---
+# Let's Encrypt Certificate Management for HAProxy  
+# Automated certificate generation with DNS challenge
+
 - name: Create HAProxy certs directory
   file:
     path: /etc/haproxy/certs
@@ -5,137 +9,98 @@
     owner: root
     group: root
     mode: '0700'
+  tags:
+    - haproxy_config
+    - ssl_config
+    - certificates
+    - config_update
+    - always
 
-- name: Create Let's Encrypt configuration directory
-  file:
-    path: /etc/letsencrypt/conf
-    state: directory
-    owner: root
-    group: root
-    mode: '0700'
+- name: Install certbot and DNS plugins
+  package:
+    name:
+      - certbot
+      - python3-certbot-dns-cloudflare
+    state: present
+  become: true
 
-- name: Copy Cloudflare configuration file
+- name: Create Cloudflare credentials file for DNS challenge
   template:
-    src: templates/cloudflare.ini.j2
-    dest: /etc/letsencrypt/cloudflare.ini
+    src: templates/cloudflare-credentials.ini.j2
+    dest: /etc/letsencrypt/cloudflare-credentials.ini
     owner: root
     group: root
     mode: '0600'
+  become: true
 
-- name: Copy DNS-01 challenge hook script
-  copy:
-    src: files/letsencrypt-dns-01-hook.sh
-    dest: /usr/local/bin/letsencrypt-dns-01-hook.sh
+- name: Create Let's Encrypt certificate request script from template
+  template:
+    src: templates/request-letsencrypt-cert.sh.j2
+    dest: /usr/local/bin/request-letsencrypt-cert.sh
     owner: root
     group: root
-    mode: '0700'
+    mode: '0755'
+  become: true
 
-- name: Copy DNS cleanup hook script
-  copy:
-    src: files/letsencrypt-dns-cleanup-hook.sh
-    dest: /usr/local/bin/letsencrypt-dns-cleanup-hook.sh
+- name: Fix line endings on Let's Encrypt certificate script
+  shell: sed -i 's/\r$//' /usr/local/bin/request-letsencrypt-cert.sh
+  become: true
+
+- name: Create Let's Encrypt certificate renewal script from template
+  template:
+    src: templates/renew-letsencrypt-cert.sh.j2
+    dest: /usr/local/bin/renew-letsencrypt-cert.sh
     owner: root
     group: root
-    mode: '0700'
+    mode: '0755'
+  become: true
 
-- name: Copy certificate renewal script
-  copy:
-    src: files/renew-certs.sh
-    dest: /usr/local/bin/renew-certs.sh
-    owner: root
-    group: root
-    mode: '0700'
+- name: Fix line endings on renewal script
+  shell: sed -i 's/\r$//' /usr/local/bin/renew-letsencrypt-cert.sh
+  become: true
 
-- name: Install jq for JSON processing
-  package:
-    name: jq
-    state: present
-
-- name: Install certbot and dependencies
-  apt:
-    name:
-      - certbot
-      - python3-setuptools
-      - python3-dev
-      - git
-      - build-essential
-    state: present
-    update_cache: yes
-
-- name: Clone certbot-dns-cloudflare repository
-  git:
-    repo: https://github.com/certbot/certbot.git
-    dest: /tmp/certbot
-    version: master
-    depth: 1
-
-- name: Install certbot-dns-cloudflare from source
-  shell: |
-    cd /tmp/certbot/certbot-dns-cloudflare
-    python3 setup.py install
-  args:
-    creates: /usr/local/lib/python3*/dist-packages/certbot_dns_cloudflare*.egg-info
-
-- name: Create certbot directories
+- name: Create log directory for certificate renewal
   file:
-    path: "{{ item }}"
+    path: /var/log
     state: directory
     owner: root
     group: root
     mode: '0755'
-  with_items:
-    - /etc/letsencrypt
-    - /var/lib/letsencrypt
-    - /var/log/letsencrypt
-    - /etc/letsencrypt/renewal-hooks/post
-
-- name: Copy certificate renewal hooks
-  copy:
-    src: "files/{{ item }}"
-    dest: "/etc/letsencrypt/renewal-hooks/post/{{ item | basename }}"
-    owner: root
-    group: root
-    mode: '0755'
-  with_items:
-    - renew-certs.sh
-
-- name: Create symlink for post-hook script (fixes certbot post-hook error)
-  file:
-    src: /usr/local/bin/renew-certs.sh
-    dest: /etc/letsencrypt/renewal-hooks/post/renew-certs.sh
-    state: link
-    force: yes
   become: true
 
-- name: Add certificate renewal cron job
+- name: Set up automatic certificate renewal cron job
   cron:
-    name: "Renew Let's Encrypt certificates"
-    special_time: daily
-    job: "certbot renew --quiet"
+    name: "Let's Encrypt certificate renewal"
+    minute: "{{ letsencrypt_renewal_minute | default('0') }}"
+    hour: "{{ letsencrypt_renewal_hour | default('2') }}"
+    job: "/usr/local/bin/renew-letsencrypt-cert.sh"
     user: root
-
-
-# Copy over the certificate request script
-- name: Copy certificate request script
-  copy:
-    src: files/request-cert.sh
-    dest: /usr/local/bin/request-cert.sh
-    owner: root
-    group: root
-    mode: '0755'
   become: true
 
-# Copy over the certificate cleanup script
-- name: Copy certificate cleanup script
-  copy:
-    src: files/cleanup-certs.sh
-    dest: /usr/local/bin/cleanup-certs.sh
-    owner: root
-    group: root
-    mode: '0755'
-  become: true
+- name: Display certificate renewal configuration
+  debug:
+    msg: |
+      Certificate Auto-Renewal Configuration:
+      - Renewal script: /usr/local/bin/renew-letsencrypt-cert.sh
+      - Cron schedule: {{ letsencrypt_renewal_hour | default('2') }}:{{ letsencrypt_renewal_minute | default('0') }} daily
+      - Log file: /var/log/letsencrypt-renewal.log
+      - Environment: {{ 'STAGING' if letsencrypt_staging | default(true) else 'PRODUCTION' }}
+      - Renewal threshold: 30 days before expiration
 
-# Copy diagnostic script
+- name: Test certificate renewal script (dry run)
+  shell: /usr/local/bin/renew-letsencrypt-cert.sh
+  register: renewal_test
+  become: true
+  ignore_errors: true
+
+- name: Display renewal test results
+  debug:
+    msg: |
+      Certificate Renewal Test Results:
+      - Script execution: {{ 'SUCCESS' if renewal_test.rc == 0 else 'FAILED' }}
+      - Output: {{ renewal_test.stdout_lines | default(['No output']) }}
+      - Note: This is expected to show "no renewal needed" for new certificates
+
 - name: Copy HAProxy certificate diagnostic script
   copy:
     src: files/haproxy-cert-diagnostic.sh
@@ -145,131 +110,223 @@
     mode: '0755'
   become: true
 
-# Fix line endings on all shell scripts (convert CRLF to LF)
-- name: Fix line endings on certificate management scripts
-  shell: sed -i 's/\r$//' "{{ item }}"
+- name: Fix line endings on diagnostic script
+  shell: sed -i 's/\r$//' /usr/local/bin/haproxy-cert-diagnostic.sh
   become: true
-  with_items:
-    - /usr/local/bin/request-cert.sh
-    - /usr/local/bin/cleanup-certs.sh
-    - /usr/local/bin/renew-certs.sh
-    - /usr/local/bin/haproxy-cert-diagnostic.sh
-    - /usr/local/bin/letsencrypt-dns-01-hook.sh
-    - /usr/local/bin/letsencrypt-dns-cleanup-hook.sh
 
-- name: Verify scripts are executable after line ending fix
+# === LET'S ENCRYPT CERTIFICATE MANAGEMENT ===
+
+- name: Clean up any existing certificate files (always generate fresh)
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "/etc/haproxy/certs/{{ domain_name }}.pem"
+    - "/etc/haproxy/certs/{{ domain_name }}.crt"
+    - "/etc/haproxy/certs/{{ domain_name }}.key"
+
+- name: Display certificate generation notice
+  debug:
+    msg: |
+      Certificate Generation for {{ inventory_hostname }}:
+      - Will generate: Let's Encrypt certificate with wildcard support
+      - Method: DNS challenge via Cloudflare API
+      - Validity: 90 days (auto-renewable)
+
+- name: Request Let's Encrypt certificate
+  command: /usr/local/bin/request-letsencrypt-cert.sh
+  become: true
+  register: letsencrypt_cert_result
+
+- name: Display certificate request results
+  debug:
+    msg: "{{ inventory_hostname }}: Let's Encrypt certificate {{ 'generated successfully' if (letsencrypt_cert_result is defined and letsencrypt_cert_result.rc == 0) else 'generation failed' if (letsencrypt_cert_result is defined and letsencrypt_cert_result.rc != 0) else 'skipped (certificate already valid)' }}"
+
+- name: Check if individual certificate files exist for manual combination
   stat:
     path: "{{ item }}"
   with_items:
-    - /usr/local/bin/request-cert.sh
-    - /usr/local/bin/cleanup-certs.sh
-    - /usr/local/bin/renew-certs.sh
-    - /usr/local/bin/haproxy-cert-diagnostic.sh
-  register: script_verification
+    - "/etc/haproxy/certs/{{ domain_name }}.crt"
+    - "/etc/haproxy/certs/{{ domain_name }}.key"
+  register: individual_cert_files
 
-- name: Display script verification results
+- name: Display certificate file status
   debug:
-    msg: "{{ item.item | basename }}: {{ 'OK' if item.stat.exists and item.stat.executable else 'FAILED' }}"
-  with_items: "{{ script_verification.results }}"
+    msg: |
+      Certificate file status:
+      - CRT file exists: {{ individual_cert_files.results[0].stat.exists | default(false) }}
+      - KEY file exists: {{ individual_cert_files.results[1].stat.exists | default(false) }}
 
+- name: Fail if certificate files are missing
+  fail:
+    msg: |
+      Certificate generation failed - missing required files:
+      - CRT file: {{ 'EXISTS' if individual_cert_files.results[0].stat.exists | default(false) else 'MISSING' }}
+      - KEY file: {{ 'EXISTS' if individual_cert_files.results[1].stat.exists | default(false) else 'MISSING' }}
+      
+      The certificate request script may have failed or cleaned up the files.
+      Check the script output above and re-run if needed.
+  when: not (individual_cert_files.results[0].stat.exists | default(false) and individual_cert_files.results[1].stat.exists | default(false))
 
-# Clean up any existing duplicate certificates first
-- name: Clean up any duplicate certificates
-  command: /usr/local/bin/cleanup-certs.sh
-  become: true
-  ignore_errors: true
-
-# Check if Let's Encrypt certificate already exists
-- name: Check if certificate already exists
-  stat:
-    path: "/etc/letsencrypt/live/{{ domain_name }}/cert.pem"
-  register: cert_file
-
-# Add random delay to prevent simultaneous certificate requests
-- name: Add random delay to prevent simultaneous requests
-  wait_for:
-    timeout: "{{ ansible_play_hosts.index(inventory_hostname) * 30 }}"
-  when: not cert_file.stat.exists | default(true)
-
-- name: Issue Let's Encrypt certificate with the certificate request script
-  command: >
-    /usr/local/bin/request-cert.sh
-    -d {{ domain_name }}
-    {% for domain in additional_domains %}
-    -d {{ domain }}
-    {% endfor %}
-    -e {{ letsencrypt_email }}
-    -p {{ dns_propagation_seconds | default(120) }}
-    -c /etc/letsencrypt/cloudflare.ini
-    -r 3
-    -s haproxy
-  become: true
-  when: not cert_file.stat.exists | default(true)
-  ignore_errors: true
-
-- name: Log certificate request status
-  debug:
-    msg: "{{ inventory_hostname }} {{ 'requested' if not cert_file.stat.exists else 'already has' }} Let's Encrypt certificate"
-
-# After the certificate issuance task, check for any certificates (all nodes)
-- name: Check for any Let's Encrypt certificates (including with suffixes)
-  find:
-    paths: /etc/letsencrypt/live
-    patterns: "{{ domain_name }}*"
-    file_type: directory
-  register: letsencrypt_cert_dirs
-  ignore_errors: true
-
-# Create directory for HAProxy certificates (all nodes)
-- name: Create HAProxy certs directory
-  file:
-    path: /etc/haproxy/certs
-    state: directory
-    owner: root
-    group: root
-    mode: '0700'
-
-# Combine certificates for HAProxy if any are found (all nodes)
-- name: Combine certificates for HAProxy
+- name: Manually combine certificate and private key (always)
   shell: |
-    for domain_dir in $(find /etc/letsencrypt/live/ -maxdepth 1 -type d | grep -v README); do
-      domain_name=$(basename "$domain_dir" | sed 's/-[0-9]*$//')  # Remove suffixes like -0001
-      if [ -f "$domain_dir/fullchain.pem" ] && [ -f "$domain_dir/privkey.pem" ]; then
-        cat "$domain_dir/fullchain.pem" "$domain_dir/privkey.pem" > "/etc/haproxy/certs/$domain_name.pem"
-        chmod 600 "/etc/haproxy/certs/$domain_name.pem"
-        echo "Created combined certificate for $domain_name"
-      fi
-    done
-  when: letsencrypt_cert_dirs.matched > 0 or cert_file.stat.exists | default(false)
+    cat "/etc/haproxy/certs/{{ domain_name }}.crt" "/etc/haproxy/certs/{{ domain_name }}.key" > "/etc/haproxy/certs/{{ domain_name }}.pem"
+    chmod 600 "/etc/haproxy/certs/{{ domain_name }}.pem"
+    chown root:root "/etc/haproxy/certs/{{ domain_name }}.pem"
+  become: true
 
+- name: Set SSL certificate availability fact (for HAProxy config)
+  set_fact:
+    ssl_cert_available: true
+  tags:
+    - haproxy_config
+    - ssl_config
+    - config_update
+    - always
 
-- name: Check if HAProxy certificate is now available
+- name: Verify final certificate exists and has both parts
   stat:
     path: "/etc/haproxy/certs/{{ domain_name }}.pem"
-  register: haproxy_cert_final_check
+  register: final_cert_check
 
-- name: Update HAProxy configuration with SSL
+- name: Verify certificate structure
+  shell: |
+    echo "Certificate validation:"
+    echo "- Certificate count: $(grep -c 'BEGIN CERTIFICATE' /etc/haproxy/certs/{{ domain_name }}.pem)"
+    echo "- Private key count: $(grep -c 'BEGIN PRIVATE KEY' /etc/haproxy/certs/{{ domain_name }}.pem)"
+    echo "- File size: $(stat -c%s /etc/haproxy/certs/{{ domain_name }}.pem) bytes"
+    echo "- Permissions: $(stat -c%a /etc/haproxy/certs/{{ domain_name }}.pem)"
+  register: cert_validation
+  when: final_cert_check.stat.exists
+
+- name: Display certificate validation results
+  debug:
+    msg: "{{ cert_validation.stdout_lines }}"
+  when: cert_validation.stdout_lines is defined
+
+- name: Fail if certificate is still missing or invalid
+  fail:
+    msg: "Certificate generation failed - no valid certificate file available"
+  when: not final_cert_check.stat.exists
+
+# === SSL CONFIGURATION UPDATE ===
+
+# SSL certificate availability fact is set earlier after certificate generation
+
+- name: Backup current HAProxy configuration before update
+  copy:
+    src: /etc/haproxy/haproxy.cfg
+    dest: "/etc/haproxy/haproxy.cfg.backup.{{ ansible_date_time.epoch }}"
+    remote_src: yes
+    owner: root
+    group: root
+    mode: '0644'
+  tags:
+    - haproxy_config
+    - ssl_config
+    - config_update
+
+- name: Update HAProxy configuration (with conditional SSL)
   template:
-    src: templates/haproxy_ssl.cfg.j2
+    src: templates/haproxy.cfg.j2
     dest: /etc/haproxy/haproxy.cfg
     owner: root
     group: root
     mode: '0644'
-  when: haproxy_cert_final_check.stat.exists
-  notify: Restart HAProxy
+  register: config_update
+  tags:
+    - haproxy_config
+    - ssl_config
+    - config_update
 
-- name: Log SSL configuration update
+- name: Fix line endings on HAProxy configuration
+  shell: sed -i 's/\r$//' /etc/haproxy/haproxy.cfg
+  become: true
+  when: config_update.changed
+
+- name: Ensure HAProxy configuration has proper ending
+  shell: |
+    echo "" >> /etc/haproxy/haproxy.cfg
+    echo "# End of HAProxy configuration" >> /etc/haproxy/haproxy.cfg
+  become: true
+  when: config_update.changed
+
+- name: Log configuration completion
   debug:
-    msg: "{{ inventory_hostname }}: HAProxy SSL configuration {{ 'updated' if haproxy_cert_final_check.stat.exists else 'skipped (no certificate)' }}"
+    msg: |
+      HAProxy Configuration Summary for {{ inventory_hostname }}:
+      - Certificate file: {{ 'AVAILABLE' if final_cert_check.stat.exists | default(false) else 'MISSING' }}
+      - SSL enabled: {{ 'YES' if ssl_cert_available | default(false) else 'NO' }}
+      - Config applied: {{ 'YES' if config_update.changed | default(false) else 'SKIPPED' }}
+      
+      Note: HAProxy will be restarted at the very end of all tasks
 
-- name: Ensure HAProxy is restarted after SSL configuration
+
+- name: Final HAProxy configuration test before service start
+  shell: /usr/sbin/haproxy -c -f /etc/haproxy/haproxy.cfg
+  become: true
+  register: final_haproxy_config_test
+
+- name: Display final HAProxy configuration test
+  debug:
+    msg: "Final HAProxy configuration test: {{ 'PASSED' if final_haproxy_config_test.rc == 0 else 'FAILED' }}"
+
+- name: Fail if final HAProxy configuration test failed
+  fail:
+    msg: "HAProxy configuration test failed. Cannot start service safely."
+  when: final_haproxy_config_test.rc != 0
+
+- name: Reset HAProxy service failure state
+  shell: systemctl reset-failed haproxy
+  become: true
+  ignore_errors: true
+
+- name: Start/Restart HAProxy service (FINAL STEP)
   systemd:
     name: haproxy
     state: restarted
-  when: haproxy_cert_final_check.stat.exists
+    enabled: yes
+    daemon_reload: yes
+  register: final_haproxy_start
+  tags:
+    - haproxy_restart
+    - service_mgmt
+    - haproxy_final
 
-- name: Verify HAProxy is running with SSL
-  systemd:
-    name: haproxy
-    state: started
-  when: haproxy_cert_final_check.stat.exists
+- name: Wait for HAProxy to be fully operational
+  wait_for:
+    port: 443
+    host: "{{ virtual_ip }}"
+    timeout: 120
+  when: final_cert_check.stat.exists | default(false)
+
+
+- name: Final service status check
+  shell: |
+    echo "=== HAProxy Final Status ==="
+    echo "Service status: $(systemctl is-active haproxy)"
+    echo "SSL port 443: $(netstat -tlnp | grep :443 | head -1 || echo 'Not bound')"
+    echo "HTTP port 80: $(netstat -tlnp | grep :80 | head -1 || echo 'Not bound')"
+    echo "Configuration test: $(/usr/sbin/haproxy -c -f /etc/haproxy/haproxy.cfg >/dev/null 2>&1 && echo 'PASSED' || echo 'FAILED')"
+  register: final_status_check
+
+- name: Display final HAProxy status
+  debug:
+    msg: "{{ final_status_check.stdout_lines }}"
+
+- name: Display Let's Encrypt certificate summary
+  debug:
+    msg: |
+      Let's Encrypt Certificate Deployment Complete for {{ inventory_hostname }}:
+      - Certificate: {{ 'DEPLOYED' if final_cert_check.stat.exists | default(false) else 'FAILED' }}
+      - SSL Config: {{ 'APPLIED' if config_update.changed | default(false) else 'SKIPPED' }}
+      - HAProxy: {{ 'RUNNING' if final_haproxy_start is succeeded else 'FAILED' }}
+      - Certificate Type: Let's Encrypt {{ '(STAGING - Testing Only)' if letsencrypt_staging | default(true) else '(PRODUCTION - Browser Trusted)' }}
+      - Validity: 90 days (auto-renewable)
+      
+      Access: https://{{ domain_name }}
+      Stats: https://{{ domain_name }}{{ haproxy_stats_uri | default('/stats') }}
+      
+      {% if letsencrypt_staging | default(true) %}
+      ⚠️  STAGING MODE: Certificates are for testing only and will show as untrusted in browsers
+      {% endif %}

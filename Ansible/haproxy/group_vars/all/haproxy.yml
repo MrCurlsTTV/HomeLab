@@ -2,11 +2,19 @@
 domain_name: "mrcurls.org"
 additional_domains:
   - "*.mrcurls.org"
+  - "*.apps.mrcurls.org"
 
 # Let's Encrypt configuration
-letsencrypt_email: "mrcurls@mrcurls.org"
+letsencrypt_email: "mrcurls@mistercurls.com"
+# Use staging environment for testing (set to false for production)
+letsencrypt_staging: false
+cloudflare_api_token: "{{ vault_cloudflare_api_token }}"
 # DNS challenge propagation time (seconds)
 dns_propagation_seconds: 120
+
+# Automatic certificate renewal settings
+letsencrypt_renewal_hour: 2    # Run renewal check at 2 AM
+letsencrypt_renewal_minute: 0  # Run at minute 0 of the hour
 
 # Network configuration
 vlan_id: 2  # VLAN ID for HAProxy traffic
@@ -45,3 +53,77 @@ haproxy_group: haproxy
 # Haproxy exporter user and password
 haproxy_exporter_user: metrics
 haproxy_exporter_password: "{{ vault_haproxy_exporter_password }}"
+
+# Dynamic services configuration
+haproxy_services:
+  - name: "grafana"
+    host: "grafana.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "argocd"
+    host: "argocd.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "authentik"
+    host: "auth.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "radarr"
+    host: "radarr.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "sonarr"
+    host: "sonarr.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "overseerr"
+    host: "overseerr.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "qbittorrent"
+    host: "qbittorrent.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "prometheus"
+    host: "prometheus.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+
+# Backend configurations
+haproxy_backends:
+  istio_ingress_backend:
+    mode: "http"
+    balance: "roundrobin"
+    health_check:
+      method: "GET"
+      path: "/healthz"
+      protocol: "HTTP/1.1"
+      expected_status: 200
+    servers: []
+  
+# Example of a direct backend (not using Istio)
+#  direct_backend:
+#    mode: "http"
+#    balance: "roundrobin"
+#    health_check:
+#      method: "GET"
+#      path: "/health"
+#      protocol: "HTTP/1.1"
+#      expected_status: 200
+#    servers:
+#      - name: "direct-server-1"
+#        host: "192.168.1.100"
+#        port: 8080
+#        check: true
+#      - name: "direct-server-2"
+#        host: "192.168.1.101"
+#        port: 8080
+#        check: true

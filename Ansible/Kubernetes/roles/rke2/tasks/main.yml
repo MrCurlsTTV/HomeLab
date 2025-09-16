@@ -18,3 +18,4 @@
 - name: Include post-installation tasks
   include_tasks: post_install.yml
   when: rke2_role == 'server'
+  

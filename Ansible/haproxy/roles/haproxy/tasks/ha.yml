@@ -93,15 +93,6 @@
     group: root
     mode: '0755'
 
-# Fix line endings on all HA shell scripts
-- name: Fix line endings on HA shell scripts
-  shell: sed -i 's/\r$//' "{{ item }}"
-  become: true
-  with_items:
-    - /usr/local/bin/notify_master.sh
-    - /usr/local/bin/notify_backup.sh
-    - /usr/local/bin/notify_fault.sh
-    - /usr/local/bin/check_haproxy.sh
 
 # Create systemd overrides for more reliable operation
 - name: Create systemd override directory for HAProxy
@@ -158,4 +149,15 @@
   systemd:
     name: keepalived
     state: restarted
-    enabled: yes 
+    enabled: yes
+
+# === FINAL CLEANUP: FIX LINE ENDINGS ===
+# Fix line endings on all HA shell scripts
+- name: Fix line endings on HA shell scripts
+  shell: sed -i 's/\r$//' "{{ item }}"
+  become: true
+  with_items:
+    - /usr/local/bin/notify_master.sh
+    - /usr/local/bin/notify_backup.sh
+    - /usr/local/bin/notify_fault.sh
+    - /usr/local/bin/check_haproxy.sh 

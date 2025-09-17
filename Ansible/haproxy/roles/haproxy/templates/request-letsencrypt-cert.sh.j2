@@ -84,7 +84,7 @@ if [ "$RENEW_NEEDED" = true ]; then
         --non-interactive \
         --agree-tos \
         --email "{{ letsencrypt_email | default('admin@' + domain_name) }}" \
-        --domains "$DOMAIN,*.$DOMAIN" \
+        --domains "$DOMAIN,*.$DOMAIN, *.apps.$DOMAIN" \
         --cert-name "$DOMAIN" \
         --keep-until-expiring \
         --expand

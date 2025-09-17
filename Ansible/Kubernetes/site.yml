@@ -44,6 +44,10 @@
   become: true
   vars:
     is_first_control_plane: true
+  tags:
+    - bootstrap
   tasks:
     - name: Include bootstrap tasks
       include_tasks: roles/rke2/tasks/bootstrap.yml
+      tags:
+        - bootstrap

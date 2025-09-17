@@ -1,0 +1,24 @@
+# Install NFS CSI Driver
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nfs-system
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: nfs-csi-driver
+  namespace: kube-system
+spec:
+  repo: https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
+  chart: csi-driver-nfs
+  version: v4.4.0
+  targetNamespace: nfs-system
+  valuesContent: |-
+    driver:
+      name: nfs.csi.k8s.io
+    controller:
+      replicas: 1
+      runOnMaster: false
+    node:
+      runOnMaster: false

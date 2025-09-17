@@ -6,25 +6,14 @@ metadata:
   namespace: istio-system
 spec:
   selector:
-    istio: ingressgateway
+    istio: ingress
   servers:
-  - port:
-      number: 443
-      name: https
-      protocol: HTTPS
-    tls:
-      mode: SIMPLE
-      credentialName: wildcard-mrcurls-net-tls
-    hosts:
-    - "*.mrcurls.org"
   - port:
       number: 80
       name: http
       protocol: HTTP
     hosts:
     - "*.mrcurls.org"
-    tls:
-      httpsRedirect: true
 ---
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
@@ -37,7 +26,20 @@ spec:
   gateways:
   - istio-system/main-gateway
   http:
-  - route:
+  - corsPolicy:
+      allowHeaders:
+      - "*"
+      allowMethods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - PATCH
+      - OPTIONS
+      allowOrigins:
+      - exact: https://argocd.mrcurls.org
+      maxAge: "24h"
+    route:
     - destination:
         host: argocd-server
         port:

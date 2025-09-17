@@ -2,17 +2,49 @@
 # File: Ansible\roles\rke2\tasks\bootstrap.yml
 # Bootstrap essential services after all cluster nodes are ready
 
+- name: Check if kubectl can connect to cluster
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Node
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+  register: cluster_check
+  retries: 10
+  delay: 30
+  until: cluster_check is succeeded
+  ignore_errors: true
+
+- name: Wait for cluster to be responsive
+  pause:
+    seconds: 60
+  when: cluster_check is failed
+
+- name: Check etcd cluster status
+  shell: |
+    kubectl get pods -n kube-system -l component=etcd --kubeconfig /etc/rancher/rke2/rke2.yaml
+  register: etcd_status
+  ignore_errors: true
+  when: cluster_check is failed
+
+- name: Display etcd status
+  debug:
+    msg: "ETCD Status: {{ etcd_status.stdout_lines | default(['Unable to check etcd status']) }}"
+  when: cluster_check is failed
+
 - name: Wait for all cluster nodes to be ready
   kubernetes.core.k8s_info:
     api_version: v1
     kind: Node
     kubeconfig: /etc/rancher/rke2/rke2.yaml
     wait: true
-    wait_timeout: 600
+    wait_timeout: 900
     wait_condition:
       type: Ready
       status: "True"
   register: cluster_nodes
+  retries: 5
+  delay: 60
+  until: cluster_nodes is succeeded
+  ignore_errors: true
 
 - name: Display cluster node status
   debug:
@@ -28,32 +60,62 @@
   register: worker_nodes
   until: worker_nodes.resources | length >= (groups['rke2_agents'] | length)
   retries: 30
-  delay: 10
+  delay: 15
+  ignore_errors: true
 
 - name: Display worker node status
   debug:
     msg: "{{ worker_nodes.resources | length }} worker nodes ready (expected: {{ groups['rke2_agents'] | length }})"
 
-# === ISTIO BOOTSTRAP ===
-- name: Apply Istio namespace
-  kubernetes.core.k8s:
-    state: present
-    definition:
-      apiVersion: v1
-      kind: Namespace
-      metadata:
-        name: istio-system
-    kubeconfig: /etc/rancher/rke2/rke2.yaml
+- name: Check if cluster is ready for bootstrap
+  fail:
+    msg: |
+      Cluster is not ready for bootstrap:
+      - Cluster check: {{ 'SUCCESS' if cluster_nodes is succeeded else 'FAILED' }}
+      - Worker nodes: {{ worker_nodes.resources | length }}/{{ groups['rke2_agents'] | length }}
+      
+      Please wait for the cluster to stabilize and retry the bootstrap.
+  when: cluster_nodes is failed or worker_nodes.resources | length < (groups['rke2_agents'] | length)
 
-- name: Apply Istio manifests
-  kubernetes.core.k8s:
+# === ISTIO BOOTSTRAP ===
+- name: Install Istio via Helm (required for CRDs)
+  kubernetes.core.helm:
+    name: istio-base
+    chart_ref: istio/base
+    release_namespace: istio-system
+    create_namespace: true
     state: present
-    src: "{{ item }}"
     kubeconfig: /etc/rancher/rke2/rke2.yaml
-  with_fileglob:
-    - "/opt/kubernetes-bootstrap/istio/*.yaml"
-  register: istio_apply
-  ignore_errors: true
+  register: istio_base_install
+  retries: 5
+  delay: 10
+
+- name: Install Istio control plane
+  kubernetes.core.helm:
+    name: istiod
+    chart_ref: istio/istiod
+    release_namespace: istio-system
+    create_namespace: true
+    state: present
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+  register: istio_control_install
+  retries: 5
+  delay: 10
+
+- name: Install Istio ingress gateway
+  kubernetes.core.helm:
+    name: istio-ingress
+    chart_ref: istio/gateway
+    release_namespace: istio-system
+    create_namespace: true
+    state: present
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+    values:
+      labels:
+        istio: ingress  # Match the label used in the Gateway selector
+  register: istio_gateway_install
+  retries: 5
+  delay: 10
 
 - name: Wait for Istio to be ready
   kubernetes.core.k8s_info:
@@ -69,27 +131,31 @@
       status: "True"
   ignore_errors: true
 
-# === ARGOCD BOOTSTRAP ===
-- name: Apply ArgoCD namespace
-  kubernetes.core.k8s:
-    state: present
-    definition:
-      apiVersion: v1
-      kind: Namespace
-      metadata:
-        name: argocd
-    kubeconfig: /etc/rancher/rke2/rke2.yaml
-
-- name: Apply ArgoCD bootstrap manifests
+- name: Apply Istio custom manifests directly
   kubernetes.core.k8s:
     state: present
     src: "{{ item }}"
     kubeconfig: /etc/rancher/rke2/rke2.yaml
   with_fileglob:
-    - "/opt/kubernetes-bootstrap/argocd/*.yaml"
-  register: argocd_apply
+    - "/opt/kubernetes-bootstrap/bootstrap/istio/*.yaml"
+  register: istio_apply
+  when: istio_control_install is succeeded
+  ignore_errors: true
 
-- name: Wait for ArgoCD server to be ready
+# === ARGOCD BOOTSTRAP ===
+- name: Install ArgoCD via Helm (required for CRDs)
+  kubernetes.core.helm:
+    name: argocd
+    chart_ref: argo/argo-cd
+    release_namespace: argocd
+    create_namespace: true
+    state: present
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+  register: argocd_helm_install
+  retries: 5
+  delay: 10
+
+- name: Wait for ArgoCD to be ready
   kubernetes.core.k8s_info:
     api_version: apps/v1
     kind: Deployment
@@ -101,6 +167,17 @@
     wait_condition:
       type: Available
       status: "True"
+  ignore_errors: true
+
+- name: Apply ArgoCD custom manifests directly
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ item }}"
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+  with_fileglob:
+    - "/opt/kubernetes-bootstrap/bootstrap/argocd/*.yaml"
+  register: argocd_apply
+  when: argocd_helm_install is succeeded
   ignore_errors: true
 
 - name: Get ArgoCD admin password (if available)

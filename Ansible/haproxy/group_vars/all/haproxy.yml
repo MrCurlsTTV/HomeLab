@@ -104,9 +104,10 @@ haproxy_backends:
     balance: "roundrobin"
     health_check:
       method: "GET"
-      path: "/healthz"
+      path: "/healthz/ready"
       protocol: "HTTP/1.1"
       expected_status: 200
+      port: 32545
     servers: []
   
 # Example of a direct backend (not using Istio)

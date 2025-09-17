@@ -23,9 +23,11 @@ defaults
     mode    http
     option  httplog
     option  dontlognull
-    timeout connect 5000
-    timeout client  50000
-    timeout server  50000
+    option  http-server-close
+    option  forwardfor
+    timeout connect 10s
+    timeout client  300s
+    timeout server  300s
     errorfile 400 /etc/haproxy/errors/400.http
     errorfile 403 /etc/haproxy/errors/403.http
     errorfile 408 /etc/haproxy/errors/408.http
@@ -67,6 +69,17 @@ frontend https_front
     bind {{ virtual_ip }}:443
     {% endif %}
     mode http
+    option httplog
+    
+    # Define ACLs for dynamic services
+    {% for service in haproxy_services %}
+    acl host_{{ service.name }} hdr(host) -i {{ service.host }}
+    {% endfor %}
+
+    # Route to backends based on service configuration
+    {% for service in haproxy_services %}
+    use_backend {{ service.backend }} if host_{{ service.name }}
+    {% endfor %}
     
     # Define ACL for stats
     acl stats_acl path_beg {{ haproxy_stats_uri }}
@@ -118,14 +131,27 @@ backend empty_backend
 backend {{ backend_name }}
     mode {{ backend_config.mode }}
     balance {{ backend_config.balance }}
+{% if backend_name == 'istio_ingress_backend' %}
+    option tcp-check
+    tcp-check connect port 32545
+{% else %}
 {% if backend_config.health_check is defined %}
     option httpchk {{ backend_config.health_check.method }} {{ backend_config.health_check.path }} {{ backend_config.health_check.protocol }}
     http-check expect status {{ backend_config.health_check.expected_status }}
 {% endif %}
+{% endif %}
 {% if backend_name == 'istio_ingress_backend' %}
-{% for host in groups['kubernetes'] if hostvars[host]['node_role'] is defined and hostvars[host]['node_role'] == 'worker' %}
-    server {{ host }} {{ hostvars[host]['ansible_host'] }}:30080 check port 10250
+{% for host in groups['workers'] %}
+    server {{ host }} {{ hostvars[host]['ansible_host'] }}:30264 check
 {% endfor %}
+    mode http
+    http-request set-header Host %[req.hdr(host)]
+    http-request set-header X-Forwarded-For %[src]
+    http-request set-header X-Forwarded-Port %[dst_port]
+    http-request set-header X-Forwarded-Proto https if { ssl_fc }
+    http-request set-header X-Forwarded-Proto http if !{ ssl_fc }
+    timeout connect 10s
+    timeout server 300s
 {% else %}
 {% for server in backend_config.servers %}
     server {{ server.name }} {{ server.host }}:{{ server.port }}{% if server.check %} check{% endif %}

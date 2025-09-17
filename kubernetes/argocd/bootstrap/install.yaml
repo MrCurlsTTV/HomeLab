@@ -12,6 +12,18 @@ spec:
       enabled: false
     service:
       type: ClusterIP
+    config:
+      url: https://argocd.mrcurls.org
+      application.instanceLabelKey: argocd.argoproj.io/instance
+      admin.enabled: "true"
+      ga.trackingid: ""
+      repositories: |
+        - type: git
+          url: https://github.com/MrCurlsTTV/homelab.git
+      dex.config: |
+        logger:
+          level: debug
+          format: json
   dex:
     openShiftOAuth: false
   rbac:

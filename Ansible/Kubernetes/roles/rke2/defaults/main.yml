@@ -24,7 +24,8 @@ rke2_config:
     - "{{ inventory_hostname }}"
   node_ip: "{{ ansible_host }}"
   node_external_ip: "{{ ansible_host }}"
-  disable: []
+  disable: 
+    - "rke2-ingress-nginx"
   cni: "calico"
   service_node_port_range: "30000-32767"
   # Use values from group_vars/all.yml for network configuration

@@ -25,7 +25,7 @@
       {% if item.distro == 'debian' %}
       {{ distributions[item.distro].base_url }}/{{ item.name }}/latest/{{ item.distro }}-{{ item.version }}-{{ distributions[item.distro].image_type }}-amd64.{{ distributions[item.distro].image_format }}
       {% else %}
-      {{ distributions[item.distro].base_url }}/{{ item.name }}/current/{{ item.name }}-{{ distributions[item.distro].image_type }}-amd64.{{ distributions[item.distro].image_format }}
+      {{ distributions[item.distro].base_url }}/releases/{{ item.name }}/release/{{ item.distro}}-{{ item.version }}-{{ distributions[item.distro].image_type }}-amd64.{{ distributions[item.distro].image_format }}
       {% endif %}
     dest: "/tmp/{{ item.name }}-{{ distributions[item.distro].image_type }}-amd64.{{ distributions[item.distro].image_format }}"
   loop: "{{ releases }}"
@@ -114,14 +114,16 @@
 - name: Debug - Download Results
   debug:
     msg: >
-      Image download for {{ get_url_result.results[ansible_loop_var].name }}:
-      URL: {{ get_url_result.results[ansible_loop_var].url }}
-      Destination: {{ get_url_result.results[ansible_loop_var].dest }}
-      Status: {{ get_url_result.results[ansible_loop_var].changed | ternary('Downloaded', 'Already exists') }}
-  loop: "{{ get_url_result.results }}"
+      Image download for {{ releases[ansible_loop_var].name }}:
+      URL: {{ get_url_result.results[ansible_loop_var].url | default('Unknown') }}
+      Destination: {{ get_url_result.results[ansible_loop_var].dest | default('Unknown') }}
+      Status: {{ get_url_result.results[ansible_loop_var].changed | default(false) | ternary('Downloaded', 'Already exists') }}
+  loop: "{{ releases }}"
   loop_control:
     index_var: ansible_loop_var
-  when: ansible_loop_var < get_url_result.results | length
+  when: 
+    - get_url_result.results is defined
+    - ansible_loop_var < get_url_result.results | length
 
 - name: Debug - Package Lists
   debug:
@@ -131,56 +133,74 @@
   loop: "{{ releases }}"
   loop_control:
     index_var: ansible_loop_var
-  when: ansible_loop_var < package_lists.results | length
+  when: 
+    - package_lists.results is defined
+    - ansible_loop_var < package_lists.results | length
 
 - name: Debug - Image Customization
   debug:
     msg: >
       Customizing {{ releases[ansible_loop_var].name }}:
-      Status: {{ customize_image_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
+      Status: {{ (customize_image_result.results[ansible_loop_var].rc | default(1)) == 0 | ternary('Success', 'Failed') }}
   loop: "{{ releases }}"
   loop_control:
     index_var: ansible_loop_var
-  when: ansible_loop_var < customize_image_result.results | length
+  when: 
+    - customize_image_result.results is defined
+    - ansible_loop_var < customize_image_result.results | length
 
 - name: Debug - VM Operations
   debug:
     msg: >
       VM {{ releases[ansible_loop_var].template_vm_id }} ({{ releases[ansible_loop_var].distro }}-{{ releases[ansible_loop_var].version }}):
-      Stop: {{ stop_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
-      Destroy: {{ destroy_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
-      Create: {{ qm_create_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
+      Stop: {{ (stop_result.results[ansible_loop_var].rc | default(1)) == 0 | ternary('Success', 'Failed/Skipped') }}
+      Destroy: {{ (destroy_result.results[ansible_loop_var].rc | default(1)) == 0 | ternary('Success', 'Failed/Skipped') }}
+      Create: {{ (qm_create_result.results[ansible_loop_var].rc | default(1)) == 0 | ternary('Success', 'Failed') }}
   loop: "{{ releases }}"
   loop_control:
     index_var: ansible_loop_var
-  when: ansible_loop_var < qm_create_result.results | length
+  when: 
+    - ansible_loop_var < releases | length
+    - stop_result.results is defined
+    - destroy_result.results is defined
+    - qm_create_result.results is defined
+    - ansible_loop_var < stop_result.results | length
+    - ansible_loop_var < destroy_result.results | length  
+    - ansible_loop_var < qm_create_result.results | length
 
 - name: Debug - Import and Configure
   debug:
     msg: >
       VM {{ releases[ansible_loop_var].template_vm_id }} Configuration:
-      Storage Import: {{ qm_set.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
+      Storage Import: {{ (qm_set.results[ansible_loop_var].rc | default(1)) == 0 | ternary('Success', 'Failed') }}
       Settings: {{ qm_set.results[ansible_loop_var].stdout_lines | default(['No output']) | join(', ') }}
   loop: "{{ releases }}"
   loop_control:
     index_var: ansible_loop_var
-  when: ansible_loop_var < qm_set.results | length
+  when: 
+    - qm_set.results is defined
+    - ansible_loop_var < qm_set.results | length
 
 - name: Debug - Template Conversion
   debug:
     msg: >
       Template {{ releases[ansible_loop_var].template_vm_id }}:
-      Status: {{ template_result.results[ansible_loop_var].rc == 0 | ternary('Success', 'Failed') }}
+      Status: {{ (template_result.results[ansible_loop_var].rc | default(1)) == 0 | ternary('Success', 'Failed') }}
   loop: "{{ releases }}"
   loop_control:
     index_var: ansible_loop_var
-  when: ansible_loop_var < template_result.results | length
+  when: 
+    - template_result.results is defined
+    - ansible_loop_var < template_result.results | length
 
 - name: Debug - Final Summary
   debug:
     msg: >
       Template Creation Summary:
       Total templates processed: {{ releases | length }}
-      Successful downloads: {{ get_url_result.results | selectattr('changed', 'equalto', true) | list | length }}
-      Failed downloads: {{ get_url_result.results | selectattr('failed', 'equalto', true) | list | length }}
-      Successful templates: {{ template_result.results | selectattr('rc', 'equalto', 0) | list | length }}
+      Successful downloads: {{ (get_url_result.results | default([])) | selectattr('changed', 'equalto', true) | list | length }}
+      Failed downloads: {{ (get_url_result.results | default([])) | selectattr('failed', 'equalto', true) | list | length }}
+      Successful templates: {{ (template_result.results | default([])) | selectattr('rc', 'equalto', 0) | list | length }}
+  when: 
+    - get_url_result is defined
+    - template_result is defined

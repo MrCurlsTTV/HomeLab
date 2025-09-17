@@ -7,10 +7,6 @@
     - create_templates
   vars:
     releases:
-      - name: oracular
-        version: "24.10"
-        distro: ubuntu
-        template_vm_id: 9010
       - name: noble
         version: "24.04"
         distro: ubuntu

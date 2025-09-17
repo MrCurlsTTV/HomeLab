@@ -11,24 +11,27 @@
 - name: Server node kubectl tasks
   when: rke2_role == 'server'
   block:
-    - name: Install Kubectl using snap
-      community.general.snap:
-        name: kubectl
-        classic: yes
+    - name: Add Kubernetes APT repository key
+      apt_key:
+        url: https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key
+        keyring: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
         state: present
-      register: kubectl_install
-      retries: 3
-      delay: 10
-      timeout: 45
-      failed_when: false
 
-    # Fallback to direct download if snap fails
-    - name: Install kubectl (fallback to direct download)
-      get_url:
-        url: "https://dl.k8s.io/release/{{ kubernetes_version }}/bin/linux/amd64/kubectl"
-        dest: /usr/local/bin/kubectl
-        mode: '0755'
-      when: kubectl_install is failed or kubectl_install.rc is defined and kubectl_install.rc != 0
+    - name: Add Kubernetes APT repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /"
+        state: present
+        filename: kubernetes
+
+    - name: Update APT cache after adding Kubernetes repository
+      apt:
+        update_cache: yes
+
+    - name: Install kubectl via APT (most reliable method)
+      apt:
+        name: kubectl
+        state: present
+        force_apt_get: yes
 
     - name: Create kubectl completion
       shell: kubectl completion bash > /etc/bash_completion.d/kubectl
@@ -54,9 +57,7 @@
         state: present
         kubeconfig: /etc/rancher/rke2/rke2.yaml
       with_items:
-        - istio-system
         - metallb-system
-        - argocd
         - cattle-system
         - keda
         - cattle-monitoring-system
@@ -64,6 +65,7 @@
         - nfs-provisoners
         - external-dns
         - cattle-fleet-system
+        # Note: istio-system and argocd namespaces created via bootstrap manifests
       register: namespace_result
       until: namespace_result is succeeded
       retries: 5
@@ -167,46 +169,62 @@
         KUBECONFIG: /etc/rancher/rke2/rke2.yaml
       register: helm_update
 
-    - name: Install ArgoCD CLI
-      get_url:
-        url: https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-        dest: /usr/local/bin/argocd
+    # Note: ArgoCD installation removed - will be handled via manifest bootstrap
+    
+    # === KUBERNETES MANIFEST BOOTSTRAP ===
+    # Copy essential manifests for Istio and ArgoCD bootstrap
+
+    - name: Create kubernetes-bootstrap directory
+      file:
+        path: /opt/kubernetes-bootstrap
+        state: directory
+        owner: root
+        group: root
         mode: '0755'
-
-    - name: Install ArgoCD using Helm
-      kubernetes.core.helm:
-        name: argocd
-        chart_ref: argo/argo-cd
-        release_namespace: argocd
-        create_namespace: false  # Namespace already created above
-        wait: true
-        kubeconfig: /etc/rancher/rke2/rke2.yaml
-      register: helm_result
-      until: helm_result is succeeded
-      retries: 3
-      delay: 10
-
-    - name: Wait for ArgoCD server to be ready
-      kubernetes.core.k8s_info:
-        api_version: apps/v1
-        kind: Deployment
-        name: argocd-server
-        namespace: argocd
-        kubeconfig: /etc/rancher/rke2/rke2.yaml
-        wait: yes
-        wait_timeout: 300
-        wait_condition:
-          type: Available
-          status: "True"
-
-    - name: Get ArgoCD admin password
-      shell: sudo /var/lib/rancher/rke2/bin/kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" --kubeconfig /etc/rancher/rke2/rke2.yaml | base64 -d
-      register: argocd_password
-      changed_when: false
-
-    - name: Display ArgoCD admin password
-      debug:
-        msg: "ArgoCD Admin Password: {{ argocd_password.stdout }}"
+    
+    - name: Create bootstrap manifests directory
+      file:
+        path: /opt/kubernetes-bootstrap/bootstrap
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+    
+    - name: Create ArgoCD bootstrap directory
+      file:
+        path: /opt/kubernetes-bootstrap/bootstrap/argocd
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+    
+    - name: Copy ArgoCD bootstrap manifests
+      copy:
+        src: "{{ item }}"
+        dest: "/opt/kubernetes-bootstrap/bootstrap/argocd/"
+        owner: root
+        group: root
+        mode: '0644'
+      with_fileglob:
+        - "{{ playbook_dir }}/../../kubernetes/argocd/bootstrap/*"
+    
+    - name: Create Istio bootstrap directory
+      file:
+        path: /opt/kubernetes-bootstrap/bootstrap/istio
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+    
+    - name: Copy Istio infrastructure manifests
+      copy:
+        src: "{{ item }}"
+        dest: "/opt/kubernetes-bootstrap/bootstrap/istio/"
+        owner: root
+        group: root
+        mode: '0644'
+      with_fileglob:
+        - "{{ playbook_dir }}/../../kubernetes/infrastructure/istio/*"
         
     # Install NFS provisioners after NFS role has run
     - name: Install NFS provisioners

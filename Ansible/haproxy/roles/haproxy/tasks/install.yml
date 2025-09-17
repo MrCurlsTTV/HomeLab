@@ -14,55 +14,23 @@
     state: present
   when: ansible_distribution == 'Ubuntu'
 
-- name: Add Certbot PPA repository
-  apt_repository:
-    repo: ppa:certbot/certbot
-    state: present
-  when: ansible_distribution == 'Ubuntu' and ansible_distribution_version is version('24.04', '<')
-
-- name: Install HAProxy and Certbot packages
+- name: Install HAProxy and required packages
   package:
     name:
       - haproxy
-      - certbot
-      - python3-pip
-      - python3-venv
-      - python3-certbot-dns-cloudflare
+      - curl
+      - jq
+      - openssl
+      - netcat-openbsd
     state: present
+  tags:
+    - haproxy_install
+    - haproxy_config
+    - ssl_config
+    - config_update
+    - always
 
-- name: Try to install python3-certbot-dns-cloudflare from apt (Ubuntu 24.04+)
-  apt:
-    name: python3-certbot-dns-cloudflare
-    state: present
-  when: ansible_distribution == 'Ubuntu' and ansible_distribution_version is version('24.04', '>=')
-  register: cloudflare_apt_install
-  ignore_errors: true
-
-- name: Set up Python virtual environment for Certbot plugins
-  command: python3 -m venv /opt/certbot-venv
-  args:
-    creates: /opt/certbot-venv
-  when: cloudflare_apt_install is defined and cloudflare_apt_install.failed or ansible_distribution_version is version('24.04', '<')
-
-- name: Install Certbot Cloudflare plugin in virtual environment
-  pip:
-    name: certbot-dns-cloudflare
-    state: present
-    virtualenv: /opt/certbot-venv
-  when: cloudflare_apt_install is defined and cloudflare_apt_install.failed or ansible_distribution_version is version('24.04', '<')
-
-- name: Create symlink to certbot in virtual environment
-  file:
-    src: /opt/certbot-venv/bin/certbot
-    dest: /usr/local/bin/certbot-venv
-    state: link
-  when: cloudflare_apt_install is defined and cloudflare_apt_install.failed or ansible_distribution_version is version('24.04', '<')
-
-- name: Enable and start HAProxy service
-  systemd:
-    name: haproxy
-    enabled: yes
-    state: started
+# Note: Let's Encrypt/certbot packages removed - using Cloudflare Origin certificates
 
 - name: Ensure HAProxy configuration directory exists
   file:
@@ -70,8 +38,10 @@
     state: directory
     mode: '0755'
 
-- name: Ensure SSL certificate directory exists
+- name: Ensure HAProxy certificate directory exists
   file:
-    path: /etc/letsencrypt
+    path: /etc/haproxy/certs
     state: directory
-    mode: '0755' 
+    mode: '0700'
+    owner: root
+    group: root

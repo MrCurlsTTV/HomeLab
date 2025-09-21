@@ -30,6 +30,8 @@ id_rsa.pub
 *.pem
 *.key
 *.env
+.kube/*
+.ssh/*
 
 # Generated files
 /pkg/

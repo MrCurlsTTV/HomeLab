@@ -1,52 +1,67 @@
-# Shared storage volumes for media content
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: shared-downloads
   namespace: servarr
+  annotations:
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
 spec:
   accessModes:
     - ReadWriteMany
   storageClassName: vault-data-nfs
+  volumeMode: Filesystem
   resources:
     requests:
-      storage: 500Gi
+      storage: 1Gi
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: shared-movies
   namespace: servarr
+  annotations:
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
 spec:
   accessModes:
     - ReadWriteMany
   storageClassName: vault-data-nfs
+  volumeMode: Filesystem
   resources:
     requests:
-      storage: 2Ti
+      storage: 1Gi
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: shared-tv
   namespace: servarr
+  annotations:
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
 spec:
   accessModes:
     - ReadWriteMany
   storageClassName: vault-data-nfs
+  volumeMode: Filesystem
   resources:
     requests:
-      storage: 2Ti
+      storage: 1Gi
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: shared-music
   namespace: servarr
+  annotations:
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
 spec:
   accessModes:
     - ReadWriteMany
   storageClassName: vault-data-nfs
+  volumeMode: Filesystem
   resources:
     requests:
-      storage: 500Gi
+      storage: 1Gi  

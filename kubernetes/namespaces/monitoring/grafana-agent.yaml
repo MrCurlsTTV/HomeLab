@@ -1,0 +1,195 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-agent-config
+  namespace: monitoring
+data:
+  agent.yaml: |
+    server:
+      log_level: info
+
+    metrics:
+      wal_directory: /var/lib/agent/wal
+      global:
+        scrape_interval: 60s
+        remote_write:
+          - url: http://prometheus:9090/api/v1/write
+            send_exemplars: true
+      configs:
+        - name: kubernetes
+          scrape_configs:
+            - job_name: kubernetes-pods
+              kubernetes_sd_configs:
+                - role: pod
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                  action: keep
+                  regex: true
+                - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                  action: replace
+                  target_label: __metrics_path__
+                  regex: (.+)
+                - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                  action: replace
+                  regex: ([^:]+)(?::\d+)?;(\d+)
+                  replacement: $1:$2
+                  target_label: __address__
+                - action: labelmap
+                  regex: __meta_kubernetes_pod_label_(.+)
+                - source_labels: [__meta_kubernetes_namespace]
+                  action: replace
+                  target_label: kubernetes_namespace
+                - source_labels: [__meta_kubernetes_pod_name]
+                  action: replace
+                  target_label: kubernetes_pod_name
+
+    logs:
+      configs:
+      - name: kubernetes
+        clients:
+          - url: http://loki:3100/loki/api/v1/push
+        positions:
+          filename: /var/lib/agent/positions.yaml
+        scrape_configs:
+          - job_name: kubernetes-pods-logs
+            kubernetes_sd_configs:
+              - role: pod
+            pipeline_stages:
+              - docker: {}
+            relabel_configs:
+              - source_labels:
+                  - __meta_kubernetes_pod_annotation_prometheus_io_scrape
+                action: keep
+                regex: "true"
+              - action: labelmap
+                regex: __meta_kubernetes_pod_label_(.+)
+              - source_labels: [__meta_kubernetes_namespace]
+                action: replace
+                target_label: kubernetes_namespace
+              - source_labels: [__meta_kubernetes_pod_name]
+                action: replace
+                target_label: kubernetes_pod_name
+              - source_labels: [__meta_kubernetes_pod_container_name]
+                action: replace
+                target_label: kubernetes_container_name
+
+    integrations:
+      prometheus_remote_write:
+        - url: http://prometheus:9090/api/v1/write
+      node_exporter:
+        enabled: true
+      kubernetes:
+        enabled: true
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: grafana-agent
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: grafana-agent
+  template:
+    metadata:
+      labels:
+        app: grafana-agent
+    spec:
+      serviceAccount: grafana-agent
+      containers:
+        - name: agent
+          image: grafana/agent:v0.35.0
+          args:
+            - -config.file=/etc/agent/agent.yaml
+            - -metrics.wal-directory=/var/lib/agent/wal
+            - -enable-features=integrations-next
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          ports:
+            - containerPort: 9090
+              name: http-metrics
+          volumeMounts:
+            - name: config
+              mountPath: /etc/agent
+            - name: data
+              mountPath: /var/lib/agent
+            - name: pods
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: docker
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+          resources:
+            limits:
+              cpu: 500m
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            privileged: true
+            runAsUser: 0
+      volumes:
+        - name: config
+          configMap:
+            name: grafana-agent-config
+        - name: data
+          hostPath:
+            path: /var/lib/grafana-agent
+            type: DirectoryOrCreate
+        - name: pods
+          hostPath:
+            path: /var/log/pods
+            type: DirectoryOrCreate
+        - name: docker
+          hostPath:
+            path: /var/lib/docker/containers
+            type: DirectoryOrCreate
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: grafana-agent
+  namespace: monitoring
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: grafana-agent
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/proxy
+      - nodes/metrics
+      - services
+      - endpoints
+      - pods
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    verbs: ["get"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: grafana-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: grafana-agent
+subjects:
+  - kind: ServiceAccount
+    name: grafana-agent
+    namespace: monitoring

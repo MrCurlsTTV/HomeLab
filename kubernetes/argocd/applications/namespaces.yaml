@@ -8,7 +8,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/MrCurlsTTV/homelab.git
-    targetRevision: main
+    targetRevision: development
     path: kubernetes/namespaces/servarr
   destination:
     server: https://kubernetes.default.svc
@@ -29,7 +29,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/MrCurlsTTV/homelab.git
-    targetRevision: main
+    targetRevision: development
     path: kubernetes/namespaces/torrents
   destination:
     server: https://kubernetes.default.svc
@@ -50,7 +50,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/MrCurlsTTV/homelab.git
-    targetRevision: main
+    targetRevision: development
     path: kubernetes/namespaces/monitoring
   destination:
     server: https://kubernetes.default.svc
@@ -71,7 +71,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/MrCurlsTTV/homelab.git
-    targetRevision: main
+    targetRevision: development
     path: kubernetes/namespaces/database
   destination:
     server: https://kubernetes.default.svc
@@ -92,7 +92,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/MrCurlsTTV/homelab.git
-    targetRevision: main
+    targetRevision: development
     path: kubernetes/namespaces/auth
   destination:
     server: https://kubernetes.default.svc

@@ -226,25 +226,26 @@
       with_fileglob:
         - "{{ playbook_dir }}/../../kubernetes/infrastructure/istio/*"
         
-    # Install NFS provisioners after NFS role has run
-    - name: Install NFS provisioners
-      kubernetes.core.helm:
-        name: "nfs-{{ item.name }}"
-        chart_ref: nfs-subdir-external-provisioner/nfs-subdir-external-provisioner
-        release_namespace: nfs-provisoners
-        values:
-          nfs:
-            server: "{{ nfs_server }}.{{ domain_name }}"
-            path: "{{ item.path }}"
-          storageClass:
-            name: "{{ item.Storage_class }}"
-            defaultClass: false
-            reclaimPolicy: Retain
+    # Install NFS CSI Driver after NFS role has run
+    - name: Apply NFS CSI Driver manifests
+      kubernetes.core.k8s:
         state: present
+        src: "{{ playbook_dir }}/../../kubernetes/infrastructure/storage/csi-driver.yaml"
         kubeconfig: /etc/rancher/rke2/rke2.yaml
-      loop: "{{ nfs_provisioners }}"
       when: nfs_role_completed | default(false) | bool
-      register: nfs_provisioner_install
+      register: nfs_csi_install
       retries: 5
       delay: 10
-      until: nfs_provisioner_install is succeeded 
+      until: nfs_csi_install is succeeded
+
+    # Apply storage classes
+    - name: Apply NFS Storage Classes
+      kubernetes.core.k8s:
+        state: present
+        src: "{{ playbook_dir }}/../../kubernetes/infrastructure/storage/nfs-storage.yaml"
+        kubeconfig: /etc/rancher/rke2/rke2.yaml
+      when: nfs_role_completed | default(false) | bool
+      register: nfs_storage_install
+      retries: 5
+      delay: 10
+      until: nfs_storage_install is succeeded

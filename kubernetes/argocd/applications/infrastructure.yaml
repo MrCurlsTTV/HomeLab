@@ -8,7 +8,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/MrCurlsTTV/homelab.git
-    targetRevision: main
+    targetRevision: development
     path: kubernetes/infrastructure
   destination:
     server: https://kubernetes.default.svc
@@ -28,7 +28,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/MrCurlsTTV/homelab.git
-    targetRevision: main
+    targetRevision: development
     path: kubernetes/infrastructure/storage
   destination:
     server: https://kubernetes.default.svc

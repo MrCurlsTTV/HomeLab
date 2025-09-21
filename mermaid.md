@@ -97,7 +97,7 @@ graph TB
             PROM[Prometheus<br/>Metrics Collection]
             GRAF[Grafana<br/>Visualization]
             LOKI[Loki<br/>Log Aggregation]
-            ALLOY[Grafana Alloy<br/>Observability Agent]
+            AGENT[Grafana Agent<br/>Metrics & Logs Collection]
         end
         
         subgraph "Security"
@@ -220,8 +220,8 @@ graph TB
     %% Monitoring connections
     PROM --> GRAF
     LOKI --> GRAF
-    ALLOY --> PROM
-    ALLOY --> LOKI
+    AGENT --> PROM
+    AGENT --> LOKI
     
     %% CI/CD Pipeline
     AZURE --> TERRAFORM
@@ -255,7 +255,7 @@ graph TB
     class A,S,T physicalNode
     class AM,SM,TM,AW1,AW2,SW1,SW2,TW1,TW2,AH,SH vmNode
     class K8S,ISTIO,CERT,STORAGE,ARGO k8sService
-    class AUTH,SERVARR,RADARR,SONARR,LIDARR,BAZARR,OVERSEERR,PROWLARR,QB,NZB,PSQL,REDIS,INFLUX,PROM,GRAF,LOKI,ALLOY,VAULT appService
+    class AUTH,SERVARR,RADARR,SONARR,LIDARR,BAZARR,OVERSEERR,PROWLARR,QB,NZB,PSQL,REDIS,INFLUX,PROM,GRAF,LOKI,AGENT,VAULT appService
     class CLOUDFLARE,DOMAIN,INTERNET,CF external
     class AZURE,TERRAFORM,ANSIBLE,GIT pipeline
 ```

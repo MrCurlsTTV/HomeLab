@@ -1,12 +1,13 @@
 # PostgreSQL deployment for shared database services
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: postgresql
   namespace: database
   labels:
     app: postgresql
 spec:
+  serviceName: postgresql
   replicas: 1
   selector:
     matchLabels:
@@ -16,6 +17,10 @@ spec:
       labels:
         app: postgresql
     spec:
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+        runAsGroup: 999
       containers:
       - name: postgresql
         image: postgres:15-alpine
@@ -105,7 +110,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: vault-data-nfs
+  storageClassName: local-path
   resources:
     requests:
       storage: 100Gi

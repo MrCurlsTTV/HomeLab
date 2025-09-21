@@ -96,7 +96,51 @@ haproxy_services:
     backend: "istio_ingress_backend"
     port: 80
     protocol: "http"
-
+  - name: "vaultwarden"
+    host: "vault.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "lidarr"
+    host: "lidarr.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "prowlarr"
+    host: "prowlarr.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "bazarr"
+    host: "bazarr.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "nzbget"
+    host: "nzbget.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "influxdb"
+    host: "influxdb.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "postgresql"
+    host: "postgresql.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "redis"
+    host: "redis.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
+  - name: "loki"
+    host: "loki.mrcurls.org"
+    backend: "istio_ingress_backend"
+    port: 80
+    protocol: "http"
 # Backend configurations
 haproxy_backends:
   istio_ingress_backend:

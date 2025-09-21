@@ -112,7 +112,7 @@
     kubeconfig: /etc/rancher/rke2/rke2.yaml
     values:
       labels:
-        istio: ingress  # Match the label used in the Gateway selector
+        istio: ingress
   register: istio_gateway_install
   retries: 5
   delay: 10

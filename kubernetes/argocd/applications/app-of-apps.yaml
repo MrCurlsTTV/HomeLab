@@ -10,7 +10,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/MrCurlsTTV/homelab.git
-    targetRevision: main
+    targetRevision: development
     path: kubernetes/argocd/applications
   destination:
     server: https://kubernetes.default.svc

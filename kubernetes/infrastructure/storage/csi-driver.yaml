@@ -61,6 +61,8 @@ spec:
     spec:
       hostNetwork: true
       serviceAccount: nfs-csi-controller-sa
+      securityContext:
+        privileged: true
       containers:
         - name: csi-driver-registrar
           image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.8.0
@@ -87,6 +89,8 @@ spec:
               mountPath: /registration
         - name: nfs
           image: registry.k8s.io/sig-storage/nfs-csi:v4.4.0
+          securityContext:
+            privileged: true
           args:
             - "--v=5"
             - "--nodeid=$(NODE_ID)"
@@ -163,6 +167,8 @@ spec:
               mountPath: /csi
         - name: nfs
           image: registry.k8s.io/sig-storage/nfs-csi:v4.4.0
+          securityContext:
+            privileged: true
           args:
             - "--v=5"
             - "--nodeid=$(NODE_ID)"

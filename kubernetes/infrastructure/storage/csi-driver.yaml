@@ -88,7 +88,7 @@ spec:
             - name: registration-dir
               mountPath: /registration
         - name: nfs
-          image: registry.k8s.io/sig-storage/nfs-csi:v4.4.0
+          image: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner:v4.0.2
           securityContext:
             privileged: true
           args:
@@ -166,7 +166,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: nfs
-          image: registry.k8s.io/sig-storage/nfs-csi:v4.4.0
+          image: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner:v4.0.2
           securityContext:
             privileged: true
           args:

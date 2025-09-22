@@ -44,6 +44,7 @@ spec:
         prometheus.io/port: "9707"
         prometheus.io/path: "/metrics"
     spec:
+      serviceAccountName: servarr-exporter
       initContainers:
         - name: wait-for-secret
           image: bitnami/kubectl:latest

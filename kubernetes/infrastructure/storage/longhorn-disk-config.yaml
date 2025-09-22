@@ -1,0 +1,72 @@
+---
+apiVersion: longhorn.io/v1beta2
+kind: Node
+metadata:
+  name: k8s-worker-1
+  namespace: longhorn-system
+spec:
+  disks:
+    data:
+      path: /mnt/longhorn
+      allowScheduling: true
+      storageReserved: 10737418240  # Reserve 10GB
+---
+apiVersion: longhorn.io/v1beta2
+kind: Node
+metadata:
+  name: k8s-worker-2
+  namespace: longhorn-system
+spec:
+  disks:
+    data:
+      path: /mnt/longhorn
+      allowScheduling: true
+      storageReserved: 10737418240
+---
+apiVersion: longhorn.io/v1beta2
+kind: Node
+metadata:
+  name: k8s-worker-3
+  namespace: longhorn-system
+spec:
+  disks:
+    data:
+      path: /mnt/longhorn
+      allowScheduling: true
+      storageReserved: 10737418240
+---
+apiVersion: longhorn.io/v1beta2
+kind: Node
+metadata:
+  name: k8s-worker-4
+  namespace: longhorn-system
+spec:
+  disks:
+    data:
+      path: /mnt/longhorn
+      allowScheduling: true
+      storageReserved: 10737418240
+---
+apiVersion: longhorn.io/v1beta2
+kind: Node
+metadata:
+  name: k8s-worker-5
+  namespace: longhorn-system
+spec:
+  disks:
+    data:
+      path: /mnt/longhorn
+      allowScheduling: true
+      storageReserved: 10737418240
+---
+apiVersion: longhorn.io/v1beta2
+kind: Node
+metadata:
+  name: k8s-worker-6
+  namespace: longhorn-system
+spec:
+  disks:
+    data:
+      path: /mnt/longhorn
+      allowScheduling: true
+      storageReserved: 10737418240

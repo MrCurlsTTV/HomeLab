@@ -15,12 +15,19 @@
     update_cache: yes
   ignore_errors: yes
 
-- name: Create mount points
+- name: Create NFS mount points
   file:
     path: "{{ item.path }}"
     state: directory
     mode: '0755'
   with_items: "{{ nfs_mounts }}"
+
+- name: Create Longhorn storage mount point
+  file:
+    path: "{{ longhorn_mount_point }}"
+    state: directory
+    mode: "{{ longhorn_mount_mode }}"
+  become: true
 
 - name: Mount NFS shares
   mount:
@@ -30,4 +37,4 @@
     opts: "{{ nfs_mount_options | default('rw,noatime,vers=4') }}"
     state: mounted
   with_items: "{{ nfs_mounts }}"
-  notify: restart nfs-client 
+  notify: restart nfs-client

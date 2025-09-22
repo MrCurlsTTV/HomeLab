@@ -1,4 +1,4 @@
-# PostgreSQL deployment for shared database services
+# PostgreSQL deployment for persistent data storage
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -17,48 +17,37 @@ spec:
       labels:
         app: postgresql
     spec:
-      securityContext:
-        fsGroup: 999
-        runAsUser: 999
-        runAsGroup: 999
       containers:
       - name: postgresql
         image: postgres:15-alpine
         ports:
         - containerPort: 5432
         env:
-        - name: POSTGRES_DB
-          value: "postgres"
-        - name: POSTGRES_USER
-          valueFrom:
-            secretKeyRef:
-              name: postgresql-secret
-              key: username
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
               name: postgresql-secret
               key: password
         - name: PGDATA
-          value: "/data/postgresql/pgdata"
+          value: /data/postgresql
         volumeMounts:
-        - name: postgres-data
+        - name: postgresql-data
           mountPath: /data/postgresql
-        - name: postgres-backup
+        - name: postgresql-backup
           mountPath: /backup/postgresql
         resources:
           limits:
             cpu: 1000m
-            memory: 2Gi
+            memory: 1Gi
           requests:
             cpu: 500m
-            memory: 1Gi
+            memory: 512Mi
         livenessProbe:
           exec:
             command:
             - pg_isready
             - -U
-            - $(POSTGRES_USER)
+            - postgres
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
@@ -66,14 +55,14 @@ spec:
             command:
             - pg_isready
             - -U
-            - $(POSTGRES_USER)
+            - postgres
           initialDelaySeconds: 5
           periodSeconds: 5
       volumes:
-      - name: postgres-data
+      - name: postgresql-data
         persistentVolumeClaim:
           claimName: postgresql-data
-      - name: postgres-backup
+      - name: postgresql-backup
         persistentVolumeClaim:
           claimName: postgresql-backup
 ---
@@ -93,16 +82,6 @@ spec:
     targetPort: 5432
 ---
 apiVersion: v1
-kind: Secret
-metadata:
-  name: postgresql-secret
-  namespace: database
-type: Opaque
-stringData:
-  username: "postgres"
-  password: "your-strong-postgres-password"
----
-apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgresql-data
@@ -113,7 +92,7 @@ spec:
   storageClassName: longhorn-db-storage
   resources:
     requests:
-      storage: 100Gi
+      storage: 20Gi
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

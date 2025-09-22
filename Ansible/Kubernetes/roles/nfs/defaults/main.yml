@@ -4,6 +4,10 @@ nfs_server: "{{ nfs_server | default('192.168.103.114') }}"
 
 nfs_mount_options: "rw,noatime,vers=4"
 
+# Longhorn storage mount point
+longhorn_mount_point: /mnt/longhorn
+longhorn_mount_mode: '0755'
+
 nfs_provisioners:
   - name: vault-data
     path: /mnt/Vault/Data
@@ -40,3 +44,6 @@ nfs_mounts:
 
   - path: /mnt/Data/Monitoring
     src: /mnt/Vault/Data/monitoring-data
+
+  - path: /mnt/Data/Backup
+    src: /mnt/Vault/Backup

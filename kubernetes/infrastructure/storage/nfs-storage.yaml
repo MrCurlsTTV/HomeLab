@@ -9,6 +9,7 @@ parameters:
   archiveOnDelete: "false"
   server: "192.168.103.114"
   path: "/mnt/Flash/Configs"
+  pathPattern: "${.PVC.namespace}/${.PVC.name}"
 mountOptions:
   - nfsvers=4.1
   - noatime
@@ -25,6 +26,7 @@ parameters:
   onDelete: "retain"
   server: "192.168.103.114"
   path: "/mnt/Flash/Configs"
+  pathPattern: "${.PVC.namespace}/${.PVC.name}"
 mountOptions:
   - nfsvers=4.1
   - noatime
@@ -41,6 +43,7 @@ parameters:
   onDelete: "retain"
   server: "192.168.103.114"
   path: "/mnt/Vault/Data"
+  pathPattern: "${.PVC.namespace}/${.PVC.name}"
 mountOptions:
   - nfsvers=4.1
   - noatime
@@ -57,6 +60,7 @@ parameters:
   onDelete: "retain"
   server: "192.168.103.114"
   path: "/mnt/Vault/Data/monitoring-data"
+  pathPattern: "${.PVC.namespace}/${.PVC.name}"
 mountOptions:
   - nfsvers=4.1
   - noatime
@@ -73,6 +77,7 @@ parameters:
   onDelete: "retain"
   server: "192.168.103.114"
   path: "/mnt/Vault/Data/InfluxDB"
+  pathPattern: "${.PVC.namespace}/${.PVC.name}"
 mountOptions:
   - nfsvers=4.1
   - noatime
@@ -89,6 +94,7 @@ parameters:
   onDelete: "retain"
   server: "192.168.103.114"
   path: "/mnt/Vault/Data/etcd"
+  pathPattern: "${.PVC.namespace}/${.PVC.name}"
 mountOptions:
   - nfsvers=4.1
   - noatime
@@ -105,6 +111,7 @@ parameters:
   onDelete: "retain"
   server: "192.168.103.114"
   path: "/mnt/Vault/Data"
+  pathPattern: "${.PVC.namespace}/media/${.PVC.name}"
 mountOptions:
   - nfsvers=4.1
   - noatime

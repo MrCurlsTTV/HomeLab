@@ -102,7 +102,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: vault-data-nfs
+  storageClassName: backup-nfs
   resources:
     requests:
       storage: 50Gi

@@ -13,9 +13,9 @@ nfs_provisioners:
     path: /mnt/Vault/Data
     Storage_class: vault-data-nfs
 
-  - name: influxdb
-    path: /mnt/Vault/Data/InfluxDB
-    Storage_class: influxdb-nfs
+  - name: backup
+    path: /mnt/Vault/Backup
+    Storage_class: backup-nfs
   
   - name: etcd
     path: /mnt/Vault/Data/etcd

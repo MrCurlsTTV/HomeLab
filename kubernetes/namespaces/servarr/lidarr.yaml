@@ -15,6 +15,10 @@ spec:
     metadata:
       labels:
         app: lidarr
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8686"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
       - name: lidarr

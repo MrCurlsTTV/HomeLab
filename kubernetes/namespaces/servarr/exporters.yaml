@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: servarr-exporter
+  namespace: servarr
+  labels:
+    app: servarr-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: servarr-exporter
+  template:
+    metadata:
+      labels:
+        app: servarr-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9707"
+    spec:
+      containers:
+      - name: servarr-exporter
+        image: ghcr.io/onedr0p/exportarr:v1.1.2
+        args:
+        - sonarr
+        - radarr
+        - lidarr
+        ports:
+        - name: metrics
+          containerPort: 9707
+        env:
+        - name: SONARR_URL
+          value: "http://sonarr:8989"
+        - name: RADARR_URL
+          value: "http://radarr:7878"
+        - name: LIDARR_URL
+          value: "http://lidarr:8686"
+        - name: SONARR_APIKEY
+          valueFrom:
+            secretKeyRef:
+              name: servarr-secret
+              key: sonarr_apikey
+        - name: RADARR_APIKEY
+          valueFrom:
+            secretKeyRef:
+              name: servarr-secret
+              key: radarr_apikey
+        - name: LIDARR_APIKEY
+          valueFrom:
+            secretKeyRef:
+              name: servarr-secret
+              key: lidarr_apikey
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: servarr-exporter
+  namespace: servarr
+  labels:
+    app: servarr-exporter
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9707"
+spec:
+  selector:
+    app: servarr-exporter
+  ports:
+  - name: metrics
+    port: 9707
+    targetPort: metrics

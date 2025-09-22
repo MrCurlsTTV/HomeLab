@@ -15,6 +15,10 @@ spec:
     metadata:
       labels:
         app: sonarr
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8989"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
       - name: sonarr

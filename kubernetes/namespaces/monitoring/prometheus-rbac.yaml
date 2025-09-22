@@ -9,6 +9,7 @@ kind: ClusterRole
 metadata:
   name: prometheus
 rules:
+# Kubernetes API and core resources
 - apiGroups: [""]
   resources:
   - nodes
@@ -17,17 +18,55 @@ rules:
   - services
   - endpoints
   - pods
+  - namespaces
+  - configmaps
   verbs: ["get", "list", "watch"]
-- apiGroups: ["extensions", "networking.k8s.io"]
+
+# Extensions and networking
+- apiGroups: 
+  - "extensions"
+  - "networking.k8s.io"
   resources:
   - ingresses
+  - servicemonitors
   verbs: ["get", "list", "watch"]
+
+# Apps resources (for deployments, statefulsets, etc.)
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  - daemonsets
+  - statefulsets
+  - replicasets
+  verbs: ["get", "list", "watch"]
+
+# Batch resources (for jobs, cronjobs)
+- apiGroups: ["batch"]
+  resources:
+  - jobs
+  - cronjobs
+  verbs: ["get", "list", "watch"]
+
+# Custom metrics
+- apiGroups: ["monitoring.coreos.com"]
+  resources:
+  - servicemonitors
+  - podmonitors
+  - prometheusrules
+  verbs: ["get", "list", "watch"]
+
+# Istio metrics
 - apiGroups: [""]
   resources:
-  - configmaps
-  - nodes/metrics
+  - services/proxy
   verbs: ["get"]
-- nonResourceURLs: ["/metrics"]
+
+# Non-resource URLs (metrics endpoints)
+- nonResourceURLs: 
+  - "/metrics"
+  - "/federate"
+  - "/ready"
+  - "/healthz"
   verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

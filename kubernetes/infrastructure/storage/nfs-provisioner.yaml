@@ -23,7 +23,7 @@ rules:
     verbs: ["create", "update", "patch"]
   - apiGroups: [""]
     resources: ["services", "endpoints"]
-    verbs: ["get"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -61,17 +61,46 @@ spec:
           image: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner:v4.0.2
           imagePullPolicy: IfNotPresent
           volumeMounts:
-            - name: nfs-client-root
-              mountPath: /persistentvolumes
+            - name: flash-configs
+              mountPath: /mnt/Configs
+            - name: vault-data
+              mountPath: /mnt/Vault/Data
+            - name: monitoring-data
+              mountPath: /mnt/Data/Monitoring
+            - name: influxdb-data
+              mountPath: /mnt/Data/InfluxDB
+            - name: etcd-data
+              mountPath: /mnt/Data/etcd
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
           env:
             - name: PROVISIONER_NAME
               value: k8s-sigs.io/nfs-subdir-external-provisioner
             - name: NFS_SERVER
               value: "192.168.103.114"
-            - name: NFS_PATH
-              value: "/mnt/Flash/Configs"
       volumes:
-        - name: nfs-client-root
+        - name: flash-configs
           nfs:
             server: 192.168.103.114
             path: /mnt/Flash/Configs
+        - name: vault-data
+          nfs:
+            server: 192.168.103.114
+            path: /mnt/Vault/Data
+        - name: monitoring-data
+          nfs:
+            server: 192.168.103.114
+            path: /mnt/Vault/Data/monitoring-data
+        - name: influxdb-data
+          nfs:
+            server: 192.168.103.114
+            path: /mnt/Vault/Data/InfluxDB
+        - name: etcd-data
+          nfs:
+            server: 192.168.103.114
+            path: /mnt/Vault/Data/etcd

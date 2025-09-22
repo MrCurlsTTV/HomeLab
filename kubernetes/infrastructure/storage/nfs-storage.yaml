@@ -7,6 +7,8 @@ metadata:
 provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
 parameters:
   archiveOnDelete: "false"
+  server: "192.168.103.114"
+  path: "/mnt/Configs"
 mountOptions:
   - nfsvers=4.1
   - noatime
@@ -21,6 +23,72 @@ provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
 parameters:
   archiveOnDelete: "false"
   onDelete: "retain"
+  server: "192.168.103.114"
+  path: "/mnt/Configs"
+mountOptions:
+  - nfsvers=4.1
+  - noatime
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: vault-data-nfs
+provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
+parameters:
+  archiveOnDelete: "false"
+  onDelete: "retain"
+  server: "192.168.103.114"
+  path: "/mnt/Vault/Data"
+mountOptions:
+  - nfsvers=4.1
+  - noatime
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: monitoring-data-nfs
+provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
+parameters:
+  archiveOnDelete: "false"
+  onDelete: "retain"
+  server: "192.168.103.114"
+  path: "/mnt/Data/Monitoring"
+mountOptions:
+  - nfsvers=4.1
+  - noatime
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: influxdb-nfs
+provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
+parameters:
+  archiveOnDelete: "false"
+  onDelete: "retain"
+  server: "192.168.103.114"
+  path: "/mnt/Data/InfluxDB"
+mountOptions:
+  - nfsvers=4.1
+  - noatime
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: etcd-nfs
+provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
+parameters:
+  archiveOnDelete: "false"
+  onDelete: "retain"
+  server: "192.168.103.114"
+  path: "/mnt/Data/etcd"
 mountOptions:
   - nfsvers=4.1
   - noatime

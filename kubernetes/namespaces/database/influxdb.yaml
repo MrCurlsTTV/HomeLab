@@ -1,6 +1,6 @@
 # InfluxDB deployment for time-series data storage
 apiVersion: apps/v1
-kind: StatefulSet  # Changed to StatefulSet for better storage handling
+kind: StatefulSet
 metadata:
   name: influxdb
   namespace: database
@@ -90,17 +90,6 @@ spec:
   - name: http
     port: 8086
     targetPort: 8086
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: influxdb-secret
-  namespace: database
-type: Opaque
-stringData:
-  username: "influxdb"
-  password: "your-strong-influxdb-password"
-  admin_token: "your-influxdb-admin-token"
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

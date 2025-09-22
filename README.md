@@ -198,6 +198,5 @@ A production-grade Kubernetes platform built for home media and infrastructure:
    - [ ] Declarative Authentik deployment
    - [ ] CI/CD integration
    - [ ] Servarr template standardization
-
-- [ ] Templatize some of the manifests for servarr.
-- [ ] Make the Readme on Github look pretty.
+   - [ ] Templatize some of the manifests for servarr.
+   - [ ] Make the Readme on Github look pretty.

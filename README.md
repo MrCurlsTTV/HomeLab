@@ -1,4 +1,4 @@
-# 🚀 Clusterio Kubernetes Infrastructure
+# 🚀 Kubernetes Infrastructure
 
 <p align="center">
   <a href="https://github.com/rancher/rke2"><img src="https://img.shields.io/badge/Kubernetes-RKE2-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white" alt="Kubernetes"></a>
@@ -200,3 +200,4 @@ A production-grade Kubernetes platform built for home media and infrastructure:
    - [ ] Servarr template standardization
    - [ ] Templatize some of the manifests for servarr.
    - [ ] Make the Readme on Github look pretty.
+

@@ -5,7 +5,7 @@ locals {
             target_node = "alvin"
             clone       = "ubuntu-24.04-template"
             tags        = "k8s;master;ubuntu-24.04"
-            memory      = 4096
+            memory      = 6144
             cores       = 2
             disk_size   = "50G"
             ipconfig0   = "ip=172.16.10.200/16,gw=172.16.0.1"
@@ -15,7 +15,7 @@ locals {
             target_node = "simon"
             clone       = "ubuntu-24.04-template"
             tags        = "k8s;master;ubuntu-24.04"
-            memory      = 4096
+            memory      = 6144
             cores       = 2
             disk_size   = "50G"
             ipconfig0   = "ip=172.16.10.201/16,gw=172.16.0.1"
@@ -25,7 +25,7 @@ locals {
             target_node = "theodore"
             clone       = "ubuntu-24.04-template"
             tags        = "k8s;master;ubuntu-24.04"
-            memory      = 4096
+            memory      = 6144
             cores       = 2
             disk_size   = "50G"
             ipconfig0   = "ip=172.16.10.202/16,gw=172.16.0.1"
@@ -35,7 +35,7 @@ locals {
             target_node = "alvin"
             clone       = "ubuntu-24.04-template"
             tags        = "k8s;worker;ubuntu-24.04"
-            memory      = 8192
+            memory      = 10240
             cores       = 4
             ipconfig0   = "ip=172.16.10.210/16,gw=172.16.0.1"
         }
@@ -44,7 +44,7 @@ locals {
             target_node = "alvin"
             clone       = "ubuntu-24.04-template"
             tags        = "k8s;worker;ubuntu-24.04"
-            memory      = 8192
+            memory      = 10240
             cores       = 4
             ipconfig0   = "ip=172.16.10.211/16,gw=172.16.0.1"
         }
@@ -53,7 +53,7 @@ locals {
             target_node = "simon"
             clone       = "ubuntu-24.04-template"
             tags        = "k8s;worker;ubuntu-24.04"
-            memory      = 8192
+            memory      = 10240
             cores       = 4
             ipconfig0   = "ip=172.16.10.212/16,gw=172.16.0.1"
         }
@@ -62,7 +62,7 @@ locals {
             target_node = "simon"
             clone       = "ubuntu-24.04-template"
             tags        = "k8s;worker;ubuntu-24.04"
-            memory      = 8192
+            memory      = 10240
             cores       = 4
             ipconfig0   = "ip=172.16.10.213/16,gw=172.16.0.1"
         }
@@ -71,7 +71,7 @@ locals {
             target_node = "theodore"
             clone       = "ubuntu-24.04-template"
             tags        = "k8s;worker;ubuntu-24.04"
-            memory      = 8192
+            memory      = 10240
             cores       = 4
             ipconfig0   = "ip=172.16.10.214/16,gw=172.16.0.1"
         }
@@ -80,7 +80,7 @@ locals {
             target_node = "theodore"
             clone       = "ubuntu-24.04-template"
             tags        = "k8s;worker;ubuntu-24.04"
-            memory      = 8192
+            memory      = 10240
             cores       = 4
             ipconfig0   = "ip=172.16.10.215/16,gw=172.16.0.1"
         }
@@ -89,8 +89,8 @@ locals {
             target_node = "alvin"
             clone       = "ubuntu-24.04-template"
             tags        = "haproxy;primary;ubuntu-24.04"
-            memory      = 2048
-            cores       = 1
+            memory      = 4096
+            cores       = 2
             disk_size   = "20G"
             ipconfig0   = "ip=172.16.255.0/16,gw=172.16.0.1"
         }
@@ -99,8 +99,8 @@ locals {
             target_node = "simon"
             clone       = "ubuntu-24.04-template"
             tags        = "haproxy;backup;ubuntu-24.04"
-            memory      = 2048
-            cores       = 1
+            memory      = 4096
+            cores       = 2
             disk_size   = "20G"
             ipconfig0   = "ip=172.16.255.1/16,gw=172.16.0.1"
         }

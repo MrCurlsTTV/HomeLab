@@ -74,9 +74,9 @@ data:
         operators:
           - type: regex_parser
             regex: '^(?P<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z) (?P<stream>stdout|stderr) [A-Z] (?P<message>.*)$'
-          - type: time_parser
-            parse_from: time
-            layout: '%Y-%m-%dT%H:%M:%S.%LZ'
+            parse_time:
+              layout: '%Y-%m-%dT%H:%M:%S.%LZ'
+              parse_from: time
 
     processors:
       batch:

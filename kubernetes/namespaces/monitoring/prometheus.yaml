@@ -17,6 +17,11 @@ spec:
         app: prometheus
     spec:
       serviceAccountName: prometheus
+      securityContext:
+        fsGroup: 65534
+        runAsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
       containers:
       - name: prometheus
         image: prom/prometheus:v2.45.0
@@ -244,6 +249,17 @@ data:
         - source_labels: [__meta_kubernetes_service_name]
           action: keep
           regex: grafana-agent
+
+      # HAProxy Load Balancers
+      - job_name: 'haproxy'
+        static_configs:
+        - targets:
+          - '172.16.255.0:8404'  # Primary HAProxy (MASTER)
+          - '172.16.255.1:8404'  # Secondary HAProxy (BACKUP)
+          labels:
+            service: 'haproxy'
+        metrics_path: '/metrics'
+        scheme: http
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -252,8 +268,8 @@ metadata:
   namespace: monitoring
 spec:
   accessModes:
-    - ReadWriteOnce
-  storageClassName: longhorn
+    - ReadWriteMany
+  storageClassName: longhorn-db-storage
   resources:
     requests:
       storage: 50Gi

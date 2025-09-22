@@ -2,22 +2,13 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-agent-config
+  name: grafana-alloy-config
   namespace: monitoring
 data:
-  agent.yaml: |
-    server:
-      log_level: info
-
-    metrics:
-      wal_directory: /var/lib/agent/wal
-      global:
-        scrape_interval: 60s
-        remote_write:
-          - url: http://prometheus:9090/api/v1/write
-            send_exemplars: true
-      configs:
-        - name: kubernetes
+  alloy.yaml: |
+    receivers:
+      prometheus:
+        config:
           scrape_configs:
             - job_name: kubernetes-pods
               kubernetes_sd_configs:
@@ -44,80 +35,104 @@ data:
                   action: replace
                   target_label: kubernetes_pod_name
 
-    logs:
-      configs:
-      - name: kubernetes
-        clients:
-          - url: http://loki:3100/loki/api/v1/push
-        positions:
-          filename: /var/lib/agent/positions.yaml
-        scrape_configs:
-          - job_name: kubernetes-pods-logs
-            kubernetes_sd_configs:
-              - role: pod
-            pipeline_stages:
-              - docker: {}
-            relabel_configs:
-              - source_labels:
-                  - __meta_kubernetes_pod_annotation_prometheus_io_scrape
-                action: keep
-                regex: "true"
-              - action: labelmap
-                regex: __meta_kubernetes_pod_label_(.+)
-              - source_labels: [__meta_kubernetes_namespace]
-                action: replace
-                target_label: kubernetes_namespace
-              - source_labels: [__meta_kubernetes_pod_name]
-                action: replace
-                target_label: kubernetes_pod_name
-              - source_labels: [__meta_kubernetes_pod_container_name]
-                action: replace
-                target_label: kubernetes_container_name
+      filelog:
+        include: [ /var/log/pods/*/*/*.log ]
+        exclude: []
+        start_at: beginning
+        include_file_path: true
+        include_file_name: false
+        operators:
+          - type: json_parser
+            parse_to: attributes
+          - type: time_parser
+            parse_from: attributes.time
+            layout: '%Y-%m-%dT%H:%M:%S.%LZ'
 
-    integrations:
-      prometheus_remote_write:
-        - url: http://prometheus:9090/api/v1/write
-      node_exporter:
-        enabled: true
-      kubernetes:
-        enabled: true
+    processors:
+      batch:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 1024
+        spike_limit_mib: 128
+      resource:
+        attributes:
+          - key: cluster.name
+            value: homelab
+            action: upsert
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.deployment.name
+            - k8s.namespace.name
+            - k8s.container.name
+            - k8s.node.name
+          annotations:
+            - key: prometheus.io/scrape
+              from: pod
+            - key: prometheus.io/port
+              from: pod
+          labels:
+            - key: app
+              from: pod
+
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:9090"
+      loki:
+        endpoint: "http://loki:3100/loki/api/v1/push"
+        tenant_id: "fake"
+        labels:
+          attributes:
+            container: "k8s.container.name"
+            namespace: "k8s.namespace.name"
+            pod: "k8s.pod.name"
+            node: "k8s.node.name"
+
+    service:
+      telemetry:
+        logs:
+          level: info
+      pipelines:
+        metrics:
+          receivers: [prometheus]
+          processors: [memory_limiter, k8sattributes, batch]
+          exporters: [prometheus]
+        logs:
+          receivers: [filelog]
+          processors: [memory_limiter, k8sattributes, batch]
+          exporters: [loki]
 
 ---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: grafana-agent
+  name: grafana-alloy
   namespace: monitoring
 spec:
   selector:
     matchLabels:
-      app: grafana-agent
+      app: grafana-alloy
   template:
     metadata:
       labels:
-        app: grafana-agent
+        app: grafana-alloy
     spec:
-      serviceAccount: grafana-agent
+      serviceAccount: grafana-alloy
       containers:
-        - name: agent
-          image: grafana/agent:v0.35.0
+        - name: alloy
+          image: grafana/alloy:v0.1.0
           args:
-            - -config.file=/etc/agent/agent.yaml
-            - -metrics.wal-directory=/var/lib/agent/wal
-            - -enable-features=integrations-next
-          env:
-            - name: HOSTNAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
+            - --config=/etc/alloy/alloy.yaml
           ports:
             - containerPort: 9090
               name: http-metrics
           volumeMounts:
             - name: config
-              mountPath: /etc/agent
-            - name: data
-              mountPath: /var/lib/agent
+              mountPath: /etc/alloy
             - name: pods
               mountPath: /var/log/pods
               readOnly: true
@@ -137,11 +152,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: grafana-agent-config
-        - name: data
-          hostPath:
-            path: /var/lib/grafana-agent
-            type: DirectoryOrCreate
+            name: grafana-alloy-config
         - name: pods
           hostPath:
             path: /var/log/pods
@@ -155,14 +166,14 @@ spec:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: grafana-agent
+  name: grafana-alloy
   namespace: monitoring
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: grafana-agent
+  name: grafana-alloy
 rules:
   - apiGroups: [""]
     resources:
@@ -184,12 +195,26 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: grafana-agent
+  name: grafana-alloy
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: grafana-agent
+  name: grafana-alloy
 subjects:
   - kind: ServiceAccount
-    name: grafana-agent
+    name: grafana-alloy
     namespace: monitoring
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-alloy
+  namespace: monitoring
+spec:
+  selector:
+    app: grafana-alloy
+  ports:
+    - name: http-metrics
+      port: 9090
+      targetPort: 9090

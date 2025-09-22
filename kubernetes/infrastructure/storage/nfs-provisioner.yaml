@@ -61,8 +61,16 @@ spec:
           image: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner:v4.0.2
           imagePullPolicy: IfNotPresent
           volumeMounts:
-            - name: nfs-root
-              mountPath: /nfs-root
+            - name: configs
+              mountPath: /mnt/Flash/Configs
+            - name: vault-data
+              mountPath: /mnt/Vault/Data
+            - name: influxdb-data
+              mountPath: /mnt/Vault/Data/InfluxDB
+            - name: etcd-data
+              mountPath: /mnt/Vault/Data/etcd
+            - name: monitoring-data
+              mountPath: /mnt/Vault/Data/monitoring-data
           resources:
             limits:
               cpu: 200m
@@ -76,9 +84,25 @@ spec:
             - name: NFS_SERVER
               value: "192.168.103.114"
             - name: NFS_PATH
-              value: "/mnt/vault/data"
+              value: "/mnt/Vault/Data"
       volumes:
-        - name: nfs-root
+        - name: configs
           nfs:
             server: 192.168.103.114
-            path: /mnt/vault/data
+            path: /mnt/Flash/Configs
+        - name: vault-data
+          nfs:
+            server: 192.168.103.114
+            path: /mnt/Vault/Data
+        - name: influxdb-data
+          nfs:
+            server: 192.168.103.114
+            path: /mnt/Vault/Data/InfluxDB
+        - name: etcd-data
+          nfs:
+            server: 192.168.103.114
+            path: /mnt/Vault/Data/etcd
+        - name: monitoring-data
+          nfs:
+            server: 192.168.103.114
+            path: /mnt/Vault/Data/monitoring-data

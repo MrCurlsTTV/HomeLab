@@ -6,49 +6,11 @@ metadata:
     storageclass.kubernetes.io/is-default-class: "true"
 provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
 parameters:
-  server: 192.168.103.114
-  share: /mnt/Vault/Data
-  mountOptions: "rw,noatime,vers=4"
-reclaimPolicy: Retain
-volumeBindingMode: Immediate
----
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: vault-data-nfs
-  annotations:
-    storageclass.kubernetes.io/is-not-default-class: "true"
-    kubernetes.io/description: "NFS storage with data retention. Deleting PVCs will not delete data from NFS share."
-provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
-parameters:
-  server: 192.168.103.114
-  share: /mnt/Vault/Data
-  mountOptions: "rw,noatime,vers=4"
-reclaimPolicy: Retain
-volumeBindingMode: Immediate
----
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: influxdb-nfs
-provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
-parameters:
-  server: 192.168.103.114
-  share: /mnt/Vault/Data/InfluxDB
-  mountOptions: "rw,noatime,vers=4"
-reclaimPolicy: Retain
-volumeBindingMode: Immediate
----
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: etcd-nfs
-provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
-parameters:
-  server: 192.168.103.114
-  share: /mnt/Vault/Data/etcd
-  mountOptions: "rw,noatime,vers=4"
-reclaimPolicy: Retain
+  archiveOnDelete: "false"
+mountOptions:
+  - nfsvers=4.1
+  - noatime
+reclaimPolicy: Delete
 volumeBindingMode: Immediate
 ---
 apiVersion: storage.k8s.io/v1
@@ -57,20 +19,10 @@ metadata:
   name: flash-configs-nfs
 provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
 parameters:
-  server: 192.168.103.114
-  share: /mnt/Flash/Configs
-  mountOptions: "rw,noatime,vers=4"
-reclaimPolicy: Retain
-volumeBindingMode: Immediate
----
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: monitoring-data-nfs
-provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
-parameters:
-  server: 192.168.103.114
-  share: /mnt/Vault/Data/monitoring-data
-  mountOptions: "rw,noatime,vers=4"
+  archiveOnDelete: "false"
+  onDelete: "retain"
+mountOptions:
+  - nfsvers=4.1
+  - noatime
 reclaimPolicy: Retain
 volumeBindingMode: Immediate

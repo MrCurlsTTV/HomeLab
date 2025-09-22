@@ -30,7 +30,7 @@ spec:
           value: "America/Chicago"
         volumeMounts:
         - name: config
-          mountPath: /config/overseerr
+          mountPath: /config
         resources:
           limits:
             cpu: 300m

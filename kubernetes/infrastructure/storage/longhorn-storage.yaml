@@ -7,7 +7,5 @@ allowVolumeExpansion: true
 parameters:
   numberOfReplicas: "3"
   staleReplicaTimeout: "30"
-  diskSelector: "ssd"  # If you have labeled your nodes' disks
-  nodeSelector: "storage"  # If you have labeled your storage nodes
 reclaimPolicy: Retain
 volumeBindingMode: WaitForFirstConsumer

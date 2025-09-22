@@ -1,0 +1,16 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: longhorn-vs
+  namespace: longhorn-system
+spec:
+  hosts:
+  - longhorn.mrcurls.org
+  gateways:
+  - istio-system/main-gateway
+  http:
+  - route:
+    - destination:
+        host: longhorn-frontend
+        port:
+          number: 80

@@ -94,3 +94,19 @@ mountOptions:
   - noatime
 reclaimPolicy: Retain
 volumeBindingMode: Immediate
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: media-nfs
+provisioner: k8s-sigs.io/nfs-subdir-external-provisioner
+parameters:
+  archiveOnDelete: "false"
+  onDelete: "retain"
+  server: "192.168.103.114"
+  path: "/mnt/Vault/Data/Media"
+mountOptions:
+  - nfsvers=4.1
+  - noatime
+reclaimPolicy: Retain
+volumeBindingMode: Immediate

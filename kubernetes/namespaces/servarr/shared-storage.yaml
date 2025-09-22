@@ -1,15 +1,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: shared-downloads
+  name: downloads
   namespace: servarr
-  annotations:
-    pv.kubernetes.io/bind-completed: "yes"
-    pv.kubernetes.io/bound-by-controller: "yes"
 spec:
   accessModes:
     - ReadWriteMany
-  storageClassName: vault-data-nfs
+  storageClassName: media-nfs
   volumeMode: Filesystem
   resources:
     requests:
@@ -18,15 +15,12 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: shared-movies
+  name: movies
   namespace: servarr
-  annotations:
-    pv.kubernetes.io/bind-completed: "yes"
-    pv.kubernetes.io/bound-by-controller: "yes"
 spec:
   accessModes:
     - ReadWriteMany
-  storageClassName: vault-data-nfs
+  storageClassName: media-nfs
   volumeMode: Filesystem
   resources:
     requests:
@@ -35,15 +29,12 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: shared-tv
+  name: tv
   namespace: servarr
-  annotations:
-    pv.kubernetes.io/bind-completed: "yes"
-    pv.kubernetes.io/bound-by-controller: "yes"
 spec:
   accessModes:
     - ReadWriteMany
-  storageClassName: vault-data-nfs
+  storageClassName: media-nfs
   volumeMode: Filesystem
   resources:
     requests:
@@ -52,16 +43,13 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: shared-music
+  name: music
   namespace: servarr
-  annotations:
-    pv.kubernetes.io/bind-completed: "yes"
-    pv.kubernetes.io/bound-by-controller: "yes"
 spec:
   accessModes:
     - ReadWriteMany
-  storageClassName: vault-data-nfs
+  storageClassName: media-nfs
   volumeMode: Filesystem
   resources:
     requests:
-      storage: 1Gi  
+      storage: 1Gi

@@ -52,10 +52,10 @@ spec:
           claimName: sonarr-config
       - name: downloads
         persistentVolumeClaim:
-          claimName: shared-downloads
+          claimName: downloads
       - name: tv
         persistentVolumeClaim:
-          claimName: shared-tv
+          claimName: tv
 ---
 apiVersion: v1
 kind: Service

@@ -48,10 +48,10 @@ spec:
           claimName: bazarr-config
       - name: movies
         persistentVolumeClaim:
-          claimName: shared-movies
+          claimName: movies
       - name: tv
         persistentVolumeClaim:
-          claimName: shared-tv
+          claimName: tv
 ---
 apiVersion: v1
 kind: Service

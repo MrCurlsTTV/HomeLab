@@ -82,15 +82,8 @@ data:
     exporters:
       prometheus:
         endpoint: "0.0.0.0:9090"
-      loki:
+      loki/alloy:
         endpoint: "http://loki:3100/loki/api/v1/push"
-        tenant_id: "fake"
-        labels:
-          attributes:
-            container: "k8s.container.name"
-            namespace: "k8s.namespace.name"
-            pod: "k8s.pod.name"
-            node: "k8s.node.name"
 
     service:
       telemetry:
@@ -104,7 +97,7 @@ data:
         logs:
           receivers: [filelog]
           processors: [memory_limiter, k8sattributes, batch]
-          exporters: [loki]
+          exporters: [loki/alloy]
 
 ---
 apiVersion: apps/v1
@@ -124,7 +117,7 @@ spec:
       serviceAccount: grafana-alloy
       containers:
         - name: alloy
-          image: grafana/alloy:v0.1.0
+          image: otel/opentelemetry-collector-contrib:0.90.1
           args:
             - --config=/etc/alloy/alloy.yaml
           ports:

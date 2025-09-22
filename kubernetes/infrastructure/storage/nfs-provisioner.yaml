@@ -84,7 +84,7 @@ spec:
             - name: NFS_SERVER
               value: "192.168.103.114"
             - name: NFS_PATH
-              value: "/mnt/Flash/Configs"
+              value: "/mnt/Data/Monitoring"
       volumes:
         - name: flash-configs
           nfs:
@@ -97,12 +97,12 @@ spec:
         - name: monitoring-data
           nfs:
             server: 192.168.103.114
-            path: /mnt/Vault/Data/monitoring-data
+            path: /mnt/Data/Monitoring
         - name: influxdb-data
           nfs:
             server: 192.168.103.114
-            path: /mnt/Vault/Data/InfluxDB
+            path: /mnt/Data/InfluxDB
         - name: etcd-data
           nfs:
             server: 192.168.103.114
-            path: /mnt/Vault/Data/etcd
+            path: /mnt/Data/etcd

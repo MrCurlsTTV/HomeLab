@@ -111,10 +111,10 @@ data:
               matcherRegex: "(?:trace_id|traceid|trace-id)=([^\\s\"]+)"
               name: TraceID
               url: $${__value.raw}
-      - name: Grafana Agent
+      - name: Grafana Alloy
         type: prometheus
         access: proxy
-        url: http://grafana-agent:9090/metrics
+        url: http://grafana-alloy:9090/metrics
         jsonData:
           timeInterval: 60s
 ---

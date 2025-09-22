@@ -83,6 +83,8 @@ spec:
               value: k8s-sigs.io/nfs-subdir-external-provisioner
             - name: NFS_SERVER
               value: "192.168.103.114"
+            - name: NFS_PATH
+              value: "/mnt/Flash/Configs"
       volumes:
         - name: flash-configs
           nfs:

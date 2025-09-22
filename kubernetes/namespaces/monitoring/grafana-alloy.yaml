@@ -13,39 +13,69 @@ data:
             - job_name: kubernetes-pods
               kubernetes_sd_configs:
                 - role: pod
+                  api_server: https://kubernetes.default.svc.cluster.local
+                  tls_config:
+                    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                    insecure_skip_verify: true
+                  bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+              scheme: http
+              tls_config:
+                insecure_skip_verify: true
               relabel_configs:
+                # Only scrape pods with prometheus.io/scrape=true annotation
                 - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
                   action: keep
                   regex: true
+                # Use the pod IP for scraping
+                - source_labels: [__meta_kubernetes_pod_ip]
+                  action: replace
+                  target_label: __address__
+                  regex: (.*)
+                  replacement: $1:15020
+                # Set metrics path to the Istio sidecar proxy metrics endpoint
+                - source_labels: [__meta_kubernetes_pod_container_port_name]
+                  action: keep
+                  regex: .*-metrics
                 - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
                   action: replace
                   target_label: __metrics_path__
                   regex: (.+)
-                - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-                  action: replace
-                  regex: ([^:]+)(?::\d+)?;(\d+)
-                  replacement: $1:$2
-                  target_label: __address__
+                # Add standard Kubernetes labels
                 - action: labelmap
                   regex: __meta_kubernetes_pod_label_(.+)
                 - source_labels: [__meta_kubernetes_namespace]
                   action: replace
-                  target_label: kubernetes_namespace
+                  target_label: namespace
                 - source_labels: [__meta_kubernetes_pod_name]
                   action: replace
-                  target_label: kubernetes_pod_name
+                  target_label: pod
+                # Add service-level labels
+                - source_labels: [__meta_kubernetes_service_name]
+                  action: replace
+                  target_label: service
+                - source_labels: [__meta_kubernetes_service_label_app]
+                  action: replace
+                  target_label: app
+              metric_relabel_configs:
+                # Drop noisy metrics
+                - source_labels: [__name__]
+                  regex: 'go_.*|process_.*'
+                  action: drop
+                # Keep only relevant istio metrics
+                - source_labels: [__name__]
+                  regex: 'istio_.*'
+                  action: keep
 
       filelog:
-        include: [ /var/log/pods/*/*/*.log ]
-        exclude: []
-        start_at: beginning
-        include_file_path: true
-        include_file_name: false
+        include:
+          - /var/log/pods/*/*/*.log
+        start_at: end
+        include_file_name: true
         operators:
-          - type: json_parser
-            parse_to: attributes
+          - type: regex_parser
+            regex: '^(?P<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z) (?P<stream>stdout|stderr) [A-Z] (?P<message>.*)$'
           - type: time_parser
-            parse_from: attributes.time
+            parse_from: time
             layout: '%Y-%m-%dT%H:%M:%S.%LZ'
 
     processors:
@@ -62,6 +92,10 @@ data:
       k8sattributes:
         auth_type: serviceAccount
         passthrough: false
+        pod_association:
+          - sources:
+            - from: resource_attribute
+              name: k8s.pod.uid
         extract:
           metadata:
             - k8s.pod.name
@@ -82,8 +116,23 @@ data:
     exporters:
       prometheus:
         endpoint: "0.0.0.0:9090"
-      loki/alloy:
-        endpoint: "http://loki:3100/loki/api/v1/push"
+      file:
+        path: /dev/stdout
+      splunk_hec:
+        endpoint: "http://loki:3100"
+        token: "ignored"
+        source: "alloy"
+        sourcetype: "kubernetes"
+        index: "logs"
+        sending_queue:
+          enabled: true
+          num_consumers: 4
+          queue_size: 1000
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 30s
+          max_elapsed_time: 5m
 
     service:
       telemetry:
@@ -97,7 +146,7 @@ data:
         logs:
           receivers: [filelog]
           processors: [memory_limiter, k8sattributes, batch]
-          exporters: [loki/alloy]
+          exporters: [splunk_hec, file]
 
 ---
 apiVersion: apps/v1
@@ -117,9 +166,26 @@ spec:
       serviceAccount: grafana-alloy
       containers:
         - name: alloy
-          image: otel/opentelemetry-collector-contrib:0.90.1
+          image: otel/opentelemetry-collector-contrib:0.135.0
           args:
             - --config=/etc/alloy/alloy.yaml
+          env:
+            - name: KUBERNETES_SERVICE_HOST
+              value: "kubernetes.default.svc"
+            - name: KUBERNETES_SERVICE_PORT
+              value: "443"
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           ports:
             - containerPort: 9090
               name: http-metrics
@@ -131,6 +197,9 @@ spec:
               readOnly: true
             - name: docker
               mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: kube-api-access
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
               readOnly: true
           resources:
             limits:
@@ -154,6 +223,23 @@ spec:
           hostPath:
             path: /var/lib/docker/containers
             type: DirectoryOrCreate
+        - name: kube-api-access
+          projected:
+            sources:
+            - serviceAccountToken:
+                expirationSeconds: 3607
+                path: token
+            - configMap:
+                items:
+                - key: ca.crt
+                  path: ca.crt
+                name: kube-root-ca.crt
+            - downwardAPI:
+                items:
+                - fieldRef:
+                    apiVersion: v1
+                    fieldPath: metadata.namespace
+                  path: namespace
 
 ---
 apiVersion: v1
@@ -176,11 +262,19 @@ rules:
       - services
       - endpoints
       - pods
+      - namespaces
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
     resources:
       - configmaps
     verbs: ["get"]
+  - apiGroups: ["apps"]
+    resources:
+      - replicasets
+      - deployments
+      - statefulsets
+      - daemonsets
+    verbs: ["get", "list", "watch"]
   - nonResourceURLs: ["/metrics"]
     verbs: ["get"]
 

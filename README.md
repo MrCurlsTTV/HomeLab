@@ -1,4 +1,4 @@
-# 🚀 Clusterio Kubernetes Infrastructure
+# 🚀 Kubernetes Infrastructure
 
 <p align="center">
   <a href="https://github.com/rancher/rke2"><img src="https://img.shields.io/badge/Kubernetes-RKE2-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white" alt="Kubernetes"></a>

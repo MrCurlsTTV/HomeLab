@@ -26,16 +26,38 @@ spec:
     spec:
       containers:
       - name: authentik-server
-        image: ghcr.io/goauthentik/server:2024.1.1
+        image: ghcr.io/goauthentik/server:2025.8.3
+        imagePullPolicy: Always
+        command: ["authentik"]
         args: ["server"]
         ports:
         - containerPort: 9000
+          name: http
         - containerPort: 9443
+          name: https
         env:
         - name: AUTHENTIK_REDIS__HOST
           value: "redis.database.svc.cluster.local"
         - name: AUTHENTIK_POSTGRESQL__HOST
           value: "postgresql.database.svc.cluster.local"
+        startupProbe:
+          httpGet:
+            path: /healthz/
+            port: http
+          failureThreshold: 30
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /healthz/
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz/
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
         - name: AUTHENTIK_POSTGRESQL__USER
           valueFrom:
             secretKeyRef:
@@ -98,9 +120,13 @@ spec:
       labels:
         app: authentik-worker
     spec:
+      securityContext:
+        runAsUser: 0
       containers:
       - name: authentik-worker
-        image: ghcr.io/goauthentik/server:2024.1.1
+        image: ghcr.io/goauthentik/server:2025.8.3
+        imagePullPolicy: Always
+        command: ["authentik"]
         args: ["worker"]
         env:
         - name: AUTHENTIK_REDIS__HOST

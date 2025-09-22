@@ -110,7 +110,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: local-path
+  storageClassName: longhorn-db-storage
   resources:
     requests:
       storage: 100Gi

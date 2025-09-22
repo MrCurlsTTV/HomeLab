@@ -28,8 +28,6 @@ spec:
       - name: authentik-server
         image: ghcr.io/goauthentik/server:2025.8.3
         imagePullPolicy: Always
-        command: ["authentik"]
-        args: ["server"]
         ports:
         - containerPort: 9000
           name: http
@@ -67,9 +65,9 @@ spec:
           value: "mrcurls@mrcurls.org"
         volumeMounts:
         - name: media
-          mountPath: /data/authentik/media
+          mountPath: /media
         - name: templates
-          mountPath: /config/authentik/templates
+          mountPath: /templates
         resources:
           limits:
             cpu: 1000m
@@ -108,7 +106,6 @@ spec:
       - name: authentik-worker
         image: ghcr.io/goauthentik/server:2025.8.3
         imagePullPolicy: Always
-        command: ["authentik"]
         args: ["worker"]
         env:
         - name: AUTHENTIK_REDIS__HOST
@@ -134,11 +131,11 @@ spec:
               key: secret_key
         volumeMounts:
         - name: media
-          mountPath: /data/authentik/media
+          mountPath: /media
         - name: templates
-          mountPath: /config/authentik/templates
+          mountPath: /templates
         - name: certs
-          mountPath: /config/authentik/certs
+          mountPath: /certs
         resources:
           limits:
             cpu: 500m

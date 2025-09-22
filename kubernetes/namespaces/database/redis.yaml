@@ -1,12 +1,13 @@
 # Redis deployment for caching and session storage
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet  # Changed to StatefulSet for better storage handling
 metadata:
   name: redis
   namespace: database
   labels:
     app: redis
 spec:
+  serviceName: redis
   replicas: 1
   selector:
     matchLabels:
@@ -99,7 +100,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: vault-data-nfs
+  storageClassName: longhorn-db-storage
   resources:
     requests:
       storage: 10Gi

@@ -107,6 +107,16 @@ frontend k8s_api_front
     default_backend empty_tcp_backend
     {% endif %}
 
+# Frontend for Prometheus metrics
+frontend stats
+    bind *:8404
+    mode http
+    http-request use-service prometheus-exporter if { path /metrics }
+    stats enable
+    stats uri /stats
+    stats refresh 10s
+
+
 # Backend for HAProxy stats
 backend stats_backend
     stats enable
@@ -133,7 +143,7 @@ backend {{ backend_name }}
     balance {{ backend_config.balance }}
 {% if backend_name == 'istio_ingress_backend' %}
     option tcp-check
-    tcp-check connect port 32545
+    tcp-check connect port 32242
 {% else %}
 {% if backend_config.health_check is defined %}
     option httpchk {{ backend_config.health_check.method }} {{ backend_config.health_check.path }} {{ backend_config.health_check.protocol }}
@@ -142,7 +152,7 @@ backend {{ backend_name }}
 {% endif %}
 {% if backend_name == 'istio_ingress_backend' %}
 {% for host in groups['workers'] %}
-    server {{ host }} {{ hostvars[host]['ansible_host'] }}:30264 check
+    server {{ host }} {{ hostvars[host]['ansible_host'] }}:32242 check
 {% endfor %}
     mode http
     http-request set-header Host %[req.hdr(host)]

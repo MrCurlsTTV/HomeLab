@@ -78,11 +78,77 @@
   when: cluster_nodes is failed or worker_nodes.resources | length < (groups['rke2_agents'] | length)
 
 # === ISTIO BOOTSTRAP ===
+- name: Verify bootstrap directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /opt/kubernetes-bootstrap
+    - /opt/kubernetes-bootstrap/bootstrap
+    - /opt/kubernetes-bootstrap/bootstrap/istio
+    - /opt/kubernetes-bootstrap/bootstrap/argocd
+
+- name: List files in bootstrap directories for debugging
+  find:
+    paths: "{{ item }}"
+    file_type: file
+  register: bootstrap_files
+  loop:
+    - /opt/kubernetes-bootstrap/bootstrap/istio
+    - /opt/kubernetes-bootstrap/bootstrap/argocd
+  ignore_errors: true
+
+- name: Display bootstrap files found
+  debug:
+    msg: "Files in {{ item.item }}: {{ item.files | map(attribute='path') | list }}"
+  loop: "{{ bootstrap_files.results }}"
+  when: item.files is defined
+
+- name: Copy Istio infrastructure manifests to bootstrap directory
+  copy:
+    src: "{{ item }}"
+    dest: "/opt/kubernetes-bootstrap/bootstrap/istio/"
+    owner: root
+    group: root
+    mode: '0644'
+  with_fileglob:
+    - "{{ playbook_dir }}/../../kubernetes/infrastructure/istio/*"
+  ignore_errors: true
+
+- name: Copy ArgoCD bootstrap manifests to bootstrap directory
+  copy:
+    src: "{{ item }}"
+    dest: "/opt/kubernetes-bootstrap/bootstrap/argocd/"
+    owner: root
+    group: root
+    mode: '0644'
+  with_fileglob:
+    - "{{ playbook_dir }}/../../kubernetes/argocd/bootstrap/*"
+  ignore_errors: true
+
+- name: Verify files were copied successfully
+  find:
+    paths: "{{ item }}"
+    file_type: file
+  register: copied_files
+  loop:
+    - /opt/kubernetes-bootstrap/bootstrap/istio
+    - /opt/kubernetes-bootstrap/bootstrap/argocd
+
+- name: Display copied files
+  debug:
+    msg: "Copied files in {{ item.item }}: {{ item.files | map(attribute='path') | list }}"
+  loop: "{{ copied_files.results }}"
+  when: item.files is defined
+
 - name: Install Istio via Helm (required for CRDs)
   kubernetes.core.helm:
     name: istio-base
     chart_ref: istio/base
-    release_namespace: istio-system
+    release_namespace: "{{ istio_namespace }}"
     create_namespace: true
     state: present
     kubeconfig: /etc/rancher/rke2/rke2.yaml
@@ -94,7 +160,7 @@
   kubernetes.core.helm:
     name: istiod
     chart_ref: istio/istiod
-    release_namespace: istio-system
+    release_namespace: "{{ istio_namespace }}"
     create_namespace: true
     state: present
     kubeconfig: /etc/rancher/rke2/rke2.yaml
@@ -106,13 +172,11 @@
   kubernetes.core.helm:
     name: istio-ingress
     chart_ref: istio/gateway
-    release_namespace: istio-system
+    release_namespace: "{{ istio_namespace }}"
     create_namespace: true
     state: present
     kubeconfig: /etc/rancher/rke2/rke2.yaml
-    values:
-      labels:
-        istio: ingress
+    values: "{{ istio_gateway_values }}"
   register: istio_gateway_install
   retries: 5
   delay: 10
@@ -122,7 +186,7 @@
     api_version: apps/v1
     kind: Deployment
     name: istiod
-    namespace: istio-system
+    namespace: "{{ istio_namespace }}"
     kubeconfig: /etc/rancher/rke2/rke2.yaml
     wait: true
     wait_timeout: 300
@@ -131,31 +195,123 @@
       status: "True"
   ignore_errors: true
 
-- name: Apply Istio custom manifests directly
+- name: Apply Istio custom manifests from bootstrap directory
   kubernetes.core.k8s:
     state: present
     src: "{{ item }}"
     kubeconfig: /etc/rancher/rke2/rke2.yaml
   with_fileglob:
     - "/opt/kubernetes-bootstrap/bootstrap/istio/*.yaml"
-  register: istio_apply
+  register: istio_apply_bootstrap
   when: istio_control_install is succeeded
   ignore_errors: true
 
+- name: Apply Istio custom manifests from source (fallback)
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ item }}"
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+  with_fileglob:
+    - "{{ playbook_dir }}/../../kubernetes/infrastructure/istio/*.yaml"
+  register: istio_apply_source
+  when: istio_control_install is succeeded and (istio_apply_bootstrap is failed or istio_apply_bootstrap.results | length == 0)
+  ignore_errors: true
+
+- name: Set istio_apply result
+  set_fact:
+    istio_apply: "{{ istio_apply_bootstrap if istio_apply_bootstrap is succeeded else istio_apply_source }}"
+
+- name: Wait for Istio ingress gateway to be ready
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: istio-ingress
+    namespace: "{{ istio_namespace }}"
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+    wait: true
+    wait_timeout: 300
+    wait_condition:
+      type: Available
+      status: "True"
+  ignore_errors: true
+  when: istio_gateway_install is succeeded
+
 # === ARGOCD BOOTSTRAP ===
-- name: Install ArgoCD via Helm (required for CRDs)
-  kubernetes.core.helm:
+- name: Create ArgoCD namespace
+  kubernetes.core.k8s:
     name: argocd
-    chart_ref: argo/argo-cd
-    release_namespace: argocd
-    create_namespace: true
+    api_version: v1
+    kind: Namespace
     state: present
     kubeconfig: /etc/rancher/rke2/rke2.yaml
-  register: argocd_helm_install
-  retries: 5
+  register: argocd_namespace_create
+
+- name: Install ArgoCD standard manifests
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('url', 'https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml', split_lines=False) | from_yaml_all | list }}"
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+  register: argocd_standard_install
+  retries: 3
   delay: 10
 
-- name: Wait for ArgoCD to be ready
+- name: Wait for ArgoCD standard components to be ready
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: argocd
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+    wait: true
+    wait_timeout: 300
+    wait_condition:
+      type: Available
+      status: "True"
+  register: argocd_deployments_ready
+  retries: 3
+  delay: 30
+  ignore_errors: true
+
+- name: Apply ArgoCD custom configuration from bootstrap directory
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ item }}"
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+  with_fileglob:
+    - "/opt/kubernetes-bootstrap/bootstrap/argocd/*.yaml"
+  register: argocd_config_apply_bootstrap
+  when: argocd_standard_install is succeeded
+  ignore_errors: true
+
+- name: Apply ArgoCD custom configuration from source (fallback)
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ item }}"
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+  with_fileglob:
+    - "{{ playbook_dir }}/../../kubernetes/argocd/bootstrap/*.yaml"
+  register: argocd_config_apply_source
+  when: argocd_standard_install is succeeded and (argocd_config_apply_bootstrap is failed or argocd_config_apply_bootstrap.results | length == 0)
+  ignore_errors: true
+
+- name: Set argocd_config_apply result
+  set_fact:
+    argocd_config_apply: "{{ argocd_config_apply_bootstrap if argocd_config_apply_bootstrap is succeeded else argocd_config_apply_source }}"
+
+- name: Restart ArgoCD server to pick up configuration
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: argocd-server
+        namespace: argocd
+        annotations:
+          deployment.kubernetes.io/revision: "{{ ansible_date_time.epoch }}"
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+  when: argocd_config_apply is succeeded
+
+- name: Wait for ArgoCD server to be ready after restart
   kubernetes.core.k8s_info:
     api_version: apps/v1
     kind: Deployment
@@ -163,21 +319,10 @@
     namespace: argocd
     kubeconfig: /etc/rancher/rke2/rke2.yaml
     wait: true
-    wait_timeout: 600
+    wait_timeout: 300
     wait_condition:
       type: Available
       status: "True"
-  ignore_errors: true
-
-- name: Apply ArgoCD custom manifests directly
-  kubernetes.core.k8s:
-    state: present
-    src: "{{ item }}"
-    kubeconfig: /etc/rancher/rke2/rke2.yaml
-  with_fileglob:
-    - "/opt/kubernetes-bootstrap/bootstrap/argocd/*.yaml"
-  register: argocd_apply
-  when: argocd_helm_install is succeeded
   ignore_errors: true
 
 - name: Get ArgoCD admin password (if available)
@@ -196,10 +341,11 @@
     msg: |
       Kubernetes Bootstrap Complete:
       - Istio: {{ 'APPLIED' if istio_apply is succeeded else 'FAILED' }}
-      - ArgoCD: {{ 'APPLIED' if argocd_apply is succeeded else 'FAILED' }}
+      - ArgoCD Standard: {{ 'APPLIED' if argocd_standard_install is succeeded else 'FAILED' }}
+      - ArgoCD Config: {{ 'APPLIED' if argocd_config_apply is succeeded else 'FAILED' }}
       - Worker Nodes Ready: {{ worker_nodes.resources | length }}/{{ groups['rke2_agents'] | length }}
       
       Next steps:
       - Access ArgoCD at: https://argocd.mrcurls.org
       - Use admin password above to login
-      - ArgoCD will manage additional applications
+      - ArgoCD will manage additional applications via GitOps

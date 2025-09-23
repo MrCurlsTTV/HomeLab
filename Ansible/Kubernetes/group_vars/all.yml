@@ -63,18 +63,34 @@ nfs_mounts:
 rancher_bootstrap_password: "admin"
 
 # ArgoCD configuration - centralized here
-argocd_version: "latest"
 argocd_namespace: "argocd"
-argocd_values:
-  server:
-    service:
-      type: NodePort
-    ingress:
-      enabled: true
-      hosts:
-        - argocd.{{ domain_name }}
-      tls: true
-  dex:
-    enabled: false
-  notifications:
-    enabled: true 
+argocd_url: "https://argocd.{{ domain_name }}"
+argocd_insecure: true
+argocd_admin_enabled: true
+
+# ArgoCD repository configuration
+argocd_repositories:
+  - type: git
+    url: https://github.com/MrCurlsTTV/homelab.git
+
+# Istio configuration - centralized here
+istio_namespace: "istio-system"
+istio_gateway_name: "main-gateway"
+istio_ingress_hosts:
+  - "*.{{ domain_name }}"
+
+# Istio ingress gateway configuration
+istio_gateway_values:
+  labels:
+    istio: ingress
+  service:
+    type: NodePort
+    ports:
+      - port: 80
+        targetPort: 8080
+        nodePort: 32242
+        name: http2
+      - port: 443
+        targetPort: 8443
+        nodePort: 32443
+        name: https 

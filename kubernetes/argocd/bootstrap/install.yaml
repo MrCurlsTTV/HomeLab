@@ -1,60 +1,62 @@
 # ArgoCD installation with custom configuration for GitOps
-apiVersion: argoproj.io/v1alpha1
-kind: ArgoCD
+# This file should be applied AFTER the standard ArgoCD manifests
+# 
+# Installation steps:
+# 1. kubectl create namespace argocd
+# 2. kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+# 3. kubectl apply -f this-file.yaml
+# 4. kubectl rollout restart deployment/argocd-server -n argocd
+
+apiVersion: v1
+kind: ConfigMap
 metadata:
-  name: argocd
+  name: argocd-cm
   namespace: argocd
-spec:
-  server:
-    route:
-      enabled: false
-    ingress:
-      enabled: false
-    service:
-      type: ClusterIP
-    config:
-      url: https://argocd.mrcurls.org
-      application.instanceLabelKey: argocd.argoproj.io/instance
-      admin.enabled: "true"
-      ga.trackingid: ""
-      repositories: |
-        - type: git
-          url: https://github.com/MrCurlsTTV/homelab.git
-      dex.config: |
-        logger:
-          level: debug
-          format: json
-  dex:
-    openShiftOAuth: false
-  rbac:
-    defaultPolicy: 'role:readonly'
-    policy: |
-      p, role:admin, applications, *, */*, allow
-      p, role:admin, certificates, *, *, allow
-      p, role:admin, clusters, *, *, allow
-      p, role:admin, repositories, *, *, allow
-      g, argocd-admins, role:admin
-  repo:
-    resources:
-      limits:
-        cpu: 500m
-        memory: 512Mi
-      requests:
-        cpu: 250m
-        memory: 256Mi
-  controller:
-    resources:
-      limits:
-        cpu: 1000m
-        memory: 1Gi
-      requests:
-        cpu: 500m
-        memory: 512Mi
-  redis:
-    resources:
-      limits:
-        cpu: 200m
-        memory: 256Mi
-      requests:
-        cpu: 100m
-        memory: 128Mi
+  labels:
+    app.kubernetes.io/name: argocd-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  url: https://argocd.mrcurls.org
+  application.instanceLabelKey: argocd.argoproj.io/instance
+  admin.enabled: "true"
+  server.grpc.web: "true"
+  accounts.admin: apiKey, login
+  accounts.admin.enabled: "true"
+  repositories: |
+    - type: git
+      url: https://github.com/MrCurlsTTV/homelab.git
+  dex.config: |
+    connectors: []
+    logger:
+      level: debug
+      format: json
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-cmd-params-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  server.insecure: "true"
+  server.disable.auth: "false"
+  dexserver.disable.tls: "true"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-rbac-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  policy.default: role:readonly
+  policy.csv: |
+    p, role:admin, applications, *, */*, allow
+    p, role:admin, certificates, *, *, allow
+    p, role:admin, clusters, *, *, allow
+    p, role:admin, repositories, *, *, allow
+    g, argocd-admins, role:admin

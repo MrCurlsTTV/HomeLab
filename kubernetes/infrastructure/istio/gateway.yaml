@@ -26,7 +26,21 @@ spec:
   gateways:
   - istio-system/main-gateway
   http:
-  - corsPolicy:
+  - match:
+    - uri:
+        exact: /
+    redirect:
+      uri: /applications
+  - match:
+    - uri:
+        prefix: /
+    headers:
+      request:
+        set:
+          x-forwarded-proto: https
+          x-forwarded-host: argocd.mrcurls.org
+          x-forwarded-port: "443"
+    corsPolicy:
       allowHeaders:
       - "*"
       allowMethods:

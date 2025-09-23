@@ -151,7 +151,7 @@ haproxy_backends:
       path: "/healthz/ready"
       protocol: "HTTP/1.1"
       expected_status: 200
-      port: 32545
+      port: 32242
     servers: []
   
 # Example of a direct backend (not using Istio)

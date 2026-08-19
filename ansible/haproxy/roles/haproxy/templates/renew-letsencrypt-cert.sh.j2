@@ -1,0 +1,121 @@
+#!/bin/bash
+
+# Let's Encrypt Certificate Auto-Renewal Script for HAProxy
+# This script handles certificate renewal and HAProxy reload
+
+set -euo pipefail
+
+# Configuration
+DOMAIN="{{ domain_name }}"
+CERT_DIR="/etc/haproxy/certs"
+LETSENCRYPT_DIR="/etc/letsencrypt"
+LOG_FILE="/var/log/letsencrypt-renewal.log"
+
+# Logging functions
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+success() {
+    echo "[SUCCESS] $1" | tee -a "$LOG_FILE"
+}
+
+error() {
+    echo "[ERROR] $1" | tee -a "$LOG_FILE"
+}
+
+# Ensure running as root
+if [ "$EUID" -ne 0 ]; then
+    error "This script must be run as root"
+    exit 1
+fi
+
+log "Starting Let's Encrypt certificate renewal check for $DOMAIN"
+
+# Check if certificate exists
+CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+if [ ! -f "$CERT_PATH" ]; then
+    error "Certificate not found at $CERT_PATH"
+    exit 1
+fi
+
+# Check if certificate expires in less than 30 days
+if openssl x509 -checkend 2592000 -noout -in "$CERT_PATH" >/dev/null 2>&1; then
+    log "Certificate is still valid for more than 30 days, no renewal needed"
+    exit 0
+fi
+
+log "Certificate expires within 30 days, attempting renewal..."
+
+# Attempt certificate renewal
+{% if letsencrypt_staging | default(true) %}
+STAGING_FLAG="--staging"
+log "Using Let's Encrypt STAGING environment for renewal"
+{% else %}
+STAGING_FLAG=""
+log "Using Let's Encrypt PRODUCTION environment for renewal"
+{% endif %}
+
+certbot renew \
+    $STAGING_FLAG \
+    --cert-name "$DOMAIN" \
+    --non-interactive \
+    --quiet
+
+if [ $? -eq 0 ]; then
+    success "Certificate renewal completed successfully"
+    
+    # Copy renewed certificates to HAProxy directory
+    log "Copying renewed certificates to HAProxy directory..."
+    
+    # Copy individual files
+    cp "$CERT_PATH" "$CERT_DIR/$DOMAIN.crt"
+    cp "/etc/letsencrypt/live/$DOMAIN/privkey.pem" "$CERT_DIR/$DOMAIN.key"
+    
+    # Create combined PEM file for HAProxy
+    cat "$CERT_PATH" "/etc/letsencrypt/live/$DOMAIN/privkey.pem" > "$CERT_DIR/$DOMAIN.pem"
+    
+    # Set proper permissions
+    chmod 644 "$CERT_DIR/$DOMAIN.crt"
+    chmod 600 "$CERT_DIR/$DOMAIN.key"
+    chmod 600 "$CERT_DIR/$DOMAIN.pem"
+    chown root:root "$CERT_DIR/$DOMAIN.crt" "$CERT_DIR/$DOMAIN.key" "$CERT_DIR/$DOMAIN.pem"
+    
+    # Test HAProxy configuration
+    log "Testing HAProxy configuration..."
+    if /usr/sbin/haproxy -c -f /etc/haproxy/haproxy.cfg >/dev/null 2>&1; then
+        success "HAProxy configuration test passed"
+        
+        # Reload HAProxy to use new certificates
+        log "Reloading HAProxy service..."
+        if systemctl reload haproxy; then
+            success "HAProxy reloaded successfully with new certificates"
+            
+            # Verify HAProxy is still running
+            if systemctl is-active --quiet haproxy; then
+                success "HAProxy is running with renewed certificates"
+                
+                # Log certificate info
+                CERT_INFO=$(openssl x509 -in "$CERT_DIR/$DOMAIN.pem" -text -noout 2>/dev/null)
+                NOT_AFTER=$(echo "$CERT_INFO" | grep "Not After" | sed 's/.*Not After : //')
+                log "Certificate now expires: $NOT_AFTER"
+                
+            else
+                error "HAProxy failed to start after reload"
+                exit 1
+            fi
+        else
+            error "Failed to reload HAProxy"
+            exit 1
+        fi
+    else
+        error "HAProxy configuration test failed"
+        exit 1
+    fi
+    
+else
+    error "Certificate renewal failed"
+    exit 1
+fi
+
+log "Certificate renewal process completed successfully"

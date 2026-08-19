@@ -43,14 +43,14 @@ stages:
         targetType: 'inline'
         script: 'terraform destroy -auto-approve'
       displayName: 'Terraform Destroy'
-      workingDirectory: '$(Build.SourcesDirectory)/Terraform'
+      workingDirectory: '$(Build.SourcesDirectory)/terraform'
       
     - task: Bash@3
       inputs:
         targetType: 'inline'
         script: 'ansible-playbook -i inventory/hosts.ini cloud_init_templates.yml --private-key $(sshKeySecureFile.secureFilePath)'
       displayName: 'Ansible: Create VM Templates'
-      workingDirectory: '$(Build.SourcesDirectory)/Ansible/Template Creation'
+      workingDirectory: '$(Build.SourcesDirectory)/ansible/template creation'
 
     - task: Bash@3
       inputs:
@@ -60,7 +60,7 @@ stages:
           terraform apply -auto-approve
           terraform apply -auto-approve
       displayName: 'Terraform Apply (3 times)'
-      workingDirectory: '$(Build.SourcesDirectory)/Terraform'
+      workingDirectory: '$(Build.SourcesDirectory)/terraform'
 
     - task: Bash@3
       inputs:
@@ -75,11 +75,11 @@ stages:
         targetType: 'inline'
         script: 'ansible-playbook -i inventory/hosts.ini site.yml --private-key $(sshKeySecureFile.secureFilePath)'
       displayName: 'Ansible: Configure HAProxy'
-      workingDirectory: '$(Build.SourcesDirectory)/Ansible/haproxy'
+      workingDirectory: '$(Build.SourcesDirectory)/ansible/haproxy'
     
     - task: Bash@3
       inputs:
         targetType: 'inline'
         script: 'ansible-playbook -i inventory/hosts.ini site.yml --private-key $(sshKeySecureFile.secureFilePath)'
       displayName: 'Ansible: Deploy Kubernetes'
-      workingDirectory: '$(Build.SourcesDirectory)/Ansible/Kubernetes' 
+      workingDirectory: '$(Build.SourcesDirectory)/ansible/kubernetes' 

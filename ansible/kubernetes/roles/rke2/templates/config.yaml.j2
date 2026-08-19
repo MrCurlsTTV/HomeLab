@@ -1,0 +1,41 @@
+---
+# Configuration for the first control plane node
+tls-san:
+{% if rke2_config['tls-san'] is defined %}
+{% for san in rke2_config['tls-san'] %}
+  - {{ san }}
+{% endfor %}
+{% else %}
+  - {{ ansible_host }}
+  - {{ inventory_hostname }}
+{% endif %}
+  - "{{ inventory_hostname }}.{{ domain_name }}"
+node-ip: {{ rke2_config.node_ip }}
+node-external-ip: {{ rke2_config.node_external_ip }}
+disable: {{ rke2_config.disable | to_json }}
+cni: {{ rke2_config.cni }}
+service-node-port-range: {{ rke2_config.service_node_port_range }}
+cluster-cidr: {{ rke2_config.cluster_cidr }}
+service-cidr: {{ rke2_config.service_cidr }}
+cluster-dns: {{ rke2_config.cluster_dns }}
+cluster-domain: {{ rke2_config.cluster_domain }}
+write-kubeconfig-mode: {{ rke2_config.write_kubeconfig_mode }}
+# Control plane specific configuration
+{% if rke2_server_config is defined and rke2_server_config.node_taint is defined %}
+node-taint:
+{% for taint in rke2_server_config.node_taint %}
+  - "{{ taint }}"
+{% endfor %}
+{% endif %}
+kubelet-arg:
+  - "max-pods=110"
+{% if rke2_server_config is defined and rke2_server_config.system_reserved is defined %}
+  - "system-reserved=cpu={{ rke2_server_config.system_reserved.cpu }},memory={{ rke2_server_config.system_reserved.memory }}"
+{% else %}
+  - "system-reserved=cpu=500m,memory=512Mi"
+{% endif %}
+{% if rke2_server_config is defined and rke2_server_config.kube_reserved is defined %}
+  - "kube-reserved=cpu={{ rke2_server_config.kube_reserved.cpu }},memory={{ rke2_server_config.kube_reserved.memory }}"
+{% else %}
+  - "kube-reserved=cpu=1000m,memory=1Gi"
+{% endif %} 

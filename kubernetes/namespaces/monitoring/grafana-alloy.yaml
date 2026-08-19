@@ -11,6 +11,8 @@ data:
         config:
           scrape_configs:
             - job_name: kubernetes-pods
+              scrape_interval: 30s
+              scrape_timeout: 10s
               kubernetes_sd_configs:
                 - role: pod
                   api_server: https://kubernetes.default.svc.cluster.local
@@ -69,21 +71,31 @@ data:
       filelog:
         include:
           - /var/log/pods/*/*/*.log
+        exclude:
+          - /var/log/pods/kube-system/*/*/*.log
+          - /var/log/pods/monitoring/grafana-alloy*/*.log
         start_at: end
         include_file_name: true
+        max_log_size: 1MiB
+        max_concurrent_files: 1024
         operators:
           - type: regex_parser
             regex: '^(?P<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z) (?P<stream>stdout|stderr) [A-Z] (?P<message>.*)$'
             parse_time:
               layout: '%Y-%m-%dT%H:%M:%S.%LZ'
               parse_from: time
+          - type: filter
+            expr: 'body matches "ERROR|WARN|FATAL"'
 
     processors:
       batch:
+        timeout: 10s
+        send_batch_size: 1024
+        send_batch_max_size: 2048
       memory_limiter:
         check_interval: 1s
-        limit_mib: 1024
-        spike_limit_mib: 256
+        limit_mib: 512
+        spike_limit_mib: 128
       resource:
         attributes:
           - key: cluster.name
@@ -126,27 +138,35 @@ data:
         index: "logs"
         sending_queue:
           enabled: true
-          num_consumers: 4
-          queue_size: 1000
+          num_consumers: 2
+          queue_size: 500
         retry_on_failure:
           enabled: true
           initial_interval: 1s
           max_interval: 30s
-          max_elapsed_time: 5m
+          max_elapsed_time: 2m
 
     service:
       telemetry:
         logs:
           level: info
+        metrics:
+          level: basic
+          address: 0.0.0.0:8888
+      extensions: [memory_ballast]
       pipelines:
         metrics:
           receivers: [prometheus]
-          processors: [memory_limiter, k8sattributes, batch]
+          processors: [memory_limiter, batch, k8sattributes]
           exporters: [prometheus]
         logs:
           receivers: [filelog]
-          processors: [memory_limiter, k8sattributes, batch]
-          exporters: [splunk_hec, file]
+          processors: [memory_limiter, batch, k8sattributes]
+          exporters: [splunk_hec]
+
+    extensions:
+      memory_ballast:
+        size_mib: 64
 
 ---
 apiVersion: apps/v1
@@ -203,11 +223,11 @@ spec:
               readOnly: true
           resources:
             limits:
-              cpu: 1000m
-              memory: 1536Mi
+              cpu: 500m
+              memory: 768Mi
             requests:
-              cpu: 200m
-              memory: 512Mi
+              cpu: 100m
+              memory: 256Mi
           securityContext:
             privileged: true
             runAsUser: 0

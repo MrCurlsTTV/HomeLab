@@ -6,22 +6,21 @@ additional_domains:
 
 # Let's Encrypt configuration
 letsencrypt_email: "mrcurls@mistercurls.com"
-# Use staging environment for testing (set to false for production)
-letsencrypt_staging: false
+letsencrypt_staging: 
 cloudflare_api_token: "{{ vault_cloudflare_api_token }}"
 # DNS challenge propagation time (seconds)
 dns_propagation_seconds: 120
 
 # Automatic certificate renewal settings
-letsencrypt_renewal_hour: 2    # Run renewal check at 2 AM
-letsencrypt_renewal_minute: 0  # Run at minute 0 of the hour
+letsencrypt_renewal_hour: 2
+letsencrypt_renewal_minute: 0
 
 # Network configuration
 vlan_id: 2  # VLAN ID for HAProxy traffic
-virtual_ip: "172.16.255.254"  # Virtual IP for HAProxy
+virtual_ip: "172.16.255.254"
 virtual_ip_cidr: 16
-default_gateway: "172.16.0.1"  # Default gateway IP
-dns_servers: "172.16.0.1"  # DNS server is the gateway
+default_gateway: "172.16.0.1"
+dns_servers: "172.16.0.1"
 
 # HAProxy stats settings
 haproxy_stats_enabled: true
@@ -37,7 +36,7 @@ node_exporter_version: "1.3.1"
 node_exporter_port: 9100
 
 # High Availability settings
-keepalived_interface: "eth0.{{ vlan_id }}"  # Use VLAN interface
+keepalived_interface: "eth0.{{ vlan_id }}"
 keepalived_router_id: 51
 keepalived_auth_pass: "{{ vault_keepalived_auth_pass }}"
 
@@ -58,103 +57,104 @@ haproxy_exporter_password: "{{ vault_haproxy_exporter_password }}"
 haproxy_services:
   - name: "grafana"
     host: "grafana.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "argocd"
     host: "argocd.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "authentik"
     host: "auth.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "radarr"
     host: "radarr.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "sonarr"
     host: "sonarr.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "overseerr"
     host: "overseerr.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "qbittorrent"
     host: "qbittorrent.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "prometheus"
     host: "prometheus.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "vaultwarden"
     host: "vault.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "lidarr"
     host: "lidarr.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "prowlarr"
     host: "prowlarr.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "bazarr"
     host: "bazarr.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "nzbget"
     host: "nzbget.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "influxdb"
     host: "influxdb.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "postgresql"
     host: "postgresql.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "redis"
     host: "redis.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
   - name: "loki"
     host: "loki.mrcurls.org"
-    backend: "istio_ingress_backend"
-    port: 80
-    protocol: "http"
+    backend: "envoy_ingress_backend"
+    port: 443
+    protocol: "https"
+
 # Backend configurations
 haproxy_backends:
-  istio_ingress_backend:
+  envoy_ingress_backend:
     mode: "http"
     balance: "roundrobin"
     health_check:
       method: "GET"
-      path: "/healthz/ready"
+      path: "/"
       protocol: "HTTP/1.1"
       expected_status: 200
-      port: 32242
+      port: 443
     servers: []
-  
-# Example of a direct backend (not using Istio)
+
+# Example of a direct backend (not using Envoy Gateway)
 #  direct_backend:
 #    mode: "http"
 #    balance: "roundrobin"

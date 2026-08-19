@@ -36,12 +36,12 @@ defaults
     errorfile 503 /etc/haproxy/errors/503.http
     errorfile 504 /etc/haproxy/errors/504.http
 
-# Frontend for HTTP 
+# Frontend for HTTP
 frontend http_front
     bind {{ virtual_ip }}:80
     mode http
     option httplog
-    
+
     # Define ACLs for dynamic services
 {% for service in haproxy_services %}
     acl host_{{ service.name }} hdr(host) -i {{ service.host }}
@@ -51,13 +51,13 @@ frontend http_front
 {% for service in haproxy_services %}
     use_backend {{ service.backend }} if host_{{ service.name }}
 {% endfor %}
-    
+
     # Define ACL for stats
     acl stats_acl path_beg {{ haproxy_stats_uri }}
-    
+
     # HAProxy stats if accessed via HTTP
     use_backend stats_backend if stats_acl
-    
+
     # For normal traffic (basic setup before SSL is available)
     default_backend empty_backend
 
@@ -70,7 +70,7 @@ frontend https_front
     {% endif %}
     mode http
     option httplog
-    
+
     # Define ACLs for dynamic services
     {% for service in haproxy_services %}
     acl host_{{ service.name }} hdr(host) -i {{ service.host }}
@@ -80,19 +80,19 @@ frontend https_front
     {% for service in haproxy_services %}
     use_backend {{ service.backend }} if host_{{ service.name }}
     {% endfor %}
-    
+
     # Define ACL for stats
     acl stats_acl path_beg {{ haproxy_stats_uri }}
-    
+
     # HAProxy stats
     use_backend stats_backend if stats_acl
-    
+
     # Define ACL for Prometheus
     acl prometheus_acl path {{ haproxy_exporter_metrics_uri }}
-    
+
     # Prometheus metrics endpoint
     use_backend prometheus_backend if prometheus_acl
-    
+
     # Return a default page for other HTTPS requests
     default_backend empty_backend
 
@@ -105,6 +105,17 @@ frontend k8s_api_front
     default_backend k8s_api_backend
     {% else %}
     default_backend empty_tcp_backend
+    {% endif %}
+
+# Frontend for DNS (k8s_gateway)
+frontend dns_front
+    bind {{ virtual_ip }}:53 udp
+    mode udp
+    option tcplog
+    {% if groups['kubernetes'] is defined and groups['kubernetes']|length > 0 %}
+    default_backend k8s_dns_backend
+    {% else %}
+    default_backend empty_udp_backend
     {% endif %}
 
 # Frontend for Prometheus metrics
@@ -141,18 +152,18 @@ backend empty_backend
 backend {{ backend_name }}
     mode {{ backend_config.mode }}
     balance {{ backend_config.balance }}
-{% if backend_name == 'istio_ingress_backend' %}
-    option tcp-check
-    tcp-check connect port 32242
+{% if backend_name == 'envoy_ingress_backend' %}
+    option httpchk GET / HTTP/1.1
+    http-check expect status 200
 {% else %}
 {% if backend_config.health_check is defined %}
     option httpchk {{ backend_config.health_check.method }} {{ backend_config.health_check.path }} {{ backend_config.health_check.protocol }}
     http-check expect status {{ backend_config.health_check.expected_status }}
 {% endif %}
 {% endif %}
-{% if backend_name == 'istio_ingress_backend' %}
-{% for host in groups['workers'] %}
-    server {{ host }} {{ hostvars[host]['ansible_host'] }}:32242 check
+{% if backend_name == 'envoy_ingress_backend' %}
+{% for host in groups['kubernetes'] %}
+    server {{ host }} {{ hostvars[host]['ansible_host'] }}:443 check
 {% endfor %}
     mode http
     http-request set-header Host %[req.hdr(host)]
@@ -177,14 +188,30 @@ backend k8s_api_backend
     balance roundrobin
     option tcp-check
     # Use only control plane nodes for API server
-{% for host in groups['kubernetes'] if 'master' in host %}
+{% for host in groups['kubernetes'] %}
+{% if 'control' in host or 'master' in host %}
     server {{ host }} {{ hostvars[host]['ansible_host'] }}:6443 check
+{% endif %}
+{% endfor %}
+
+# Backend for Kubernetes DNS (k8s_gateway - UDP port 53)
+backend k8s_dns_backend
+    mode udp
+    balance roundrobin
+    # Route to all nodes (k8s_gateway runs on all)
+{% for host in groups['kubernetes'] %}
+    server {{ host }} {{ hostvars[host]['ansible_host'] }}:53
 {% endfor %}
 {% else %}
 # Empty TCP backend when no Kubernetes hosts are defined
 backend empty_tcp_backend
     mode tcp
     server localhost 127.0.0.1:6443 check
+
+# Empty UDP backend when no Kubernetes hosts are defined
+backend empty_udp_backend
+    mode udp
+    server localhost 127.0.0.1:53
 {% endif %}
 
-# End of HAProxy configuration 
+# End of HAProxy configuration
